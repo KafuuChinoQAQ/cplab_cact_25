@@ -10,7 +10,7 @@ namespace cplab_parser
                                             std::exception_ptr e) 
     {
         has_syntax_error = true;
-        std::cerr << "错误信息:" << msg << std::endl;
+        std::cerr << "    Syntax Error Message: " << msg << std::endl;
     }
 
     bool CplabSyntaxErrorListener::hasSyntaxError() 

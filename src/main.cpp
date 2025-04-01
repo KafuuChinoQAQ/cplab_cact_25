@@ -1,4 +1,5 @@
-#include <iostream>
+#include <filesystem> // 文件系统库 需要C++17标准
+#include <iostream> // 标准输入输出流
 
 #include "ANTLRInputStream.h" // antlr头文件 位于deps/antlr4-runtime目录下
 
@@ -10,16 +11,21 @@ int main(int argc, const char* argv[])
 {
     if (argc != 2)
     {
-        std::cerr << "Usage: " << argv[0] << " <input file>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <input file>" << std::endl << std::endl;
         return 1;
     } // 检查命令行参数
 
     std::ifstream stream(argv[1]); //打开文件
     if (!stream)
     {
-        std::cerr << "Failed to open file: " << argv[1] << std::endl;
+        std::cerr << "Failed to open file: " << argv[1] << std::endl << std::endl;
         return 1;
     } // 检查输入文件
+
+    // 获取不包括路径的文件名
+    std::string filename = std::filesystem::path(argv[1]).filename().string();
+
+    // 建立antlr处理流
     antlr4::ANTLRInputStream input(stream); // 从文件建立antlr输入流input
     cplab_parser::CplabLexer lexer(&input); // 建立词法分析器lexer
     antlr4::CommonTokenStream tokens(&lexer); // 建立token流
@@ -35,14 +41,15 @@ int main(int argc, const char* argv[])
         antlr4::tree::ParseTree *tree = parser.compilation_unit(); // 解析输入文件
         if (cact_error_listener.hasSyntaxError()) // 检查是否有语法错误
         {
-            std::cerr << "Syntax error detected." << std::endl;
+            std::cerr << "\033[33m" << filename << ": Syntax error detected." << "\033[0m" << std::endl << std::endl; // 输出错误信息
             return 1;
         }
     }
     catch (const std::exception &e)  // 捕获异常
     {
-        std::cerr << "Parsing failed: " << e.what() << std::endl;
+        std::cerr << "Parsing failed: " << e.what() << std::endl << std::endl; // 输出异常信息
         return 1;
     }
+    std::cout << "\033[32m" << filename << ": Parsing succeeded." << "\033[0m" << std::endl << std::endl; // 输出成功信息
     return 0;
 }

@@ -23,12 +23,15 @@ Get-ChildItem -Path "E:\Homework\cplab\cact\grammar" -Filter "*.g4" | ForEach-Ob
 Write-Host "ANTLR 代码生成完成"
 
 Set-Location -Path ".." # 切换回上级目录
-# 检查远程是否存在grammar并删除
+
+# 检查远程文件夹grammar和src是否存在并删除
 ssh compiler04@124.16.71.60 'if [ -d "/home/compiler04/cact/grammar" ]; then rm -rf "/home/compiler04/cact/grammar"; fi'
+ssh compiler04@124.16.71.60 'if [ -d "/home/compiler04/cact/src" ]; then rm -rf "/home/compiler04/cact/src"; fi'
 Write-Host "远程文件夹已删除"
 
-# 执行 SCP 命令直接上传文件夹
+# 执行 SCP 命令上传文件夹grammar和src
 scp -r "E:\Homework\cplab\cact\grammar" compiler04@124.16.71.60:"/home/compiler04/cact/grammar"
+scp -r "E:\Homework\cplab\cact\src" compiler04@124.16.71.60:"/home/compiler04/cact/src"
 Write-Host "文件上传完成"
 
 # 在远程服务器上执行编译
