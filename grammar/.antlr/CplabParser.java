@@ -140,6 +140,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_compilation_unit; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterCompilation_unit(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitCompilation_unit(this);
+		}
 	}
 
 	public final Compilation_unitContext compilation_unit() throws RecognitionException {
@@ -200,6 +208,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_declaration; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterDeclaration(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitDeclaration(this);
+		}
 	}
 
 	public final DeclarationContext declaration() throws RecognitionException {
@@ -261,6 +277,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_constant_declaration; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterConstant_declaration(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitConstant_declaration(this);
+		}
 	}
 
 	public final Constant_declarationContext constant_declaration() throws RecognitionException {
@@ -316,6 +340,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_basic_type; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterBasic_type(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitBasic_type(this);
+		}
 	}
 
 	public final Basic_typeContext basic_type() throws RecognitionException {
@@ -371,6 +403,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_constant_definition; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterConstant_definition(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitConstant_definition(this);
+		}
 	}
 
 	public final Constant_definitionContext constant_definition() throws RecognitionException {
@@ -438,6 +478,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_constant_initial_value; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterConstant_initial_value(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitConstant_initial_value(this);
+		}
 	}
 
 	public final Constant_initial_valueContext constant_initial_value() throws RecognitionException {
@@ -532,6 +580,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_variable_declaration; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterVariable_declaration(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitVariable_declaration(this);
+		}
 	}
 
 	public final Variable_declarationContext variable_declaration() throws RecognitionException {
@@ -599,6 +655,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_variable_definition; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterVariable_definition(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitVariable_definition(this);
+		}
 	}
 
 	public final Variable_definitionContext variable_definition() throws RecognitionException {
@@ -671,6 +735,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_function_definition; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterFunction_definition(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitFunction_definition(this);
+		}
 	}
 
 	public final Function_definitionContext function_definition() throws RecognitionException {
@@ -723,6 +795,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_function_type; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterFunction_type(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitFunction_type(this);
+		}
 	}
 
 	public final Function_typeContext function_type() throws RecognitionException {
@@ -771,6 +851,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_function_formal_params; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterFunction_formal_params(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitFunction_formal_params(this);
+		}
 	}
 
 	public final Function_formal_paramsContext function_formal_params() throws RecognitionException {
@@ -833,6 +921,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_function_formal_param; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterFunction_formal_param(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitFunction_formal_param(this);
+		}
 	}
 
 	public final Function_formal_paramContext function_formal_param() throws RecognitionException {
@@ -913,6 +1009,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_block; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterBlock(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitBlock(this);
+		}
 	}
 
 	public final BlockContext block() throws RecognitionException {
@@ -965,6 +1069,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_block_item; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterBlock_item(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitBlock_item(this);
+		}
 	}
 
 	public final Block_itemContext block_item() throws RecognitionException {
@@ -1054,6 +1166,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_statement; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterStatement(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitStatement(this);
+		}
 	}
 
 	public final StatementContext statement() throws RecognitionException {
@@ -1202,6 +1322,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_expression; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterExpression(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitExpression(this);
+		}
 	}
 
 	public final ExpressionContext expression() throws RecognitionException {
@@ -1234,6 +1362,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_constant_expression; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterConstant_expression(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitConstant_expression(this);
+		}
 	}
 
 	public final Constant_expressionContext constant_expression() throws RecognitionException {
@@ -1266,6 +1402,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_condition; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterCondition(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitCondition(this);
+		}
 	}
 
 	public final ConditionContext condition() throws RecognitionException {
@@ -1310,6 +1454,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_left_value; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterLeft_value(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitLeft_value(this);
+		}
 	}
 
 	public final Left_valueContext left_value() throws RecognitionException {
@@ -1363,6 +1515,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_number; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterNumber(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitNumber(this);
+		}
 	}
 
 	public final NumberContext number() throws RecognitionException {
@@ -1411,6 +1571,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_function_real_params; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterFunction_real_params(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitFunction_real_params(this);
+		}
 	}
 
 	public final Function_real_paramsContext function_real_params() throws RecognitionException {
@@ -1468,6 +1636,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_primary_expression; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterPrimary_expression(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitPrimary_expression(this);
+		}
 	}
 
 	public final Primary_expressionContext primary_expression() throws RecognitionException {
@@ -1540,6 +1716,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_unary_expression; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterUnary_expression(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitUnary_expression(this);
+		}
 	}
 
 	public final Unary_expressionContext unary_expression() throws RecognitionException {
@@ -1623,6 +1807,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_multiplicative_expression; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterMultiplicative_expression(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitMultiplicative_expression(this);
+		}
 	}
 
 	public final Multiplicative_expressionContext multiplicative_expression() throws RecognitionException {
@@ -1705,6 +1897,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_additive_expression; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterAdditive_expression(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitAdditive_expression(this);
+		}
 	}
 
 	public final Additive_expressionContext additive_expression() throws RecognitionException {
@@ -1789,6 +1989,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_relational_expression; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterRelational_expression(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitRelational_expression(this);
+		}
 	}
 
 	public final Relational_expressionContext relational_expression() throws RecognitionException {
@@ -1871,6 +2079,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_equal_expression; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterEqual_expression(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitEqual_expression(this);
+		}
 	}
 
 	public final Equal_expressionContext equal_expression() throws RecognitionException {
@@ -1952,6 +2168,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_logical_and_expression; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterLogical_and_expression(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitLogical_and_expression(this);
+		}
 	}
 
 	public final Logical_and_expressionContext logical_and_expression() throws RecognitionException {
@@ -2024,6 +2248,14 @@ public class CplabParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_logical_or_expression; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).enterLogical_or_expression(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof CplabParserListener ) ((CplabParserListener)listener).exitLogical_or_expression(this);
+		}
 	}
 
 	public final Logical_or_expressionContext logical_or_expression() throws RecognitionException {
