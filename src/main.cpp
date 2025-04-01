@@ -1,7 +1,5 @@
 #include <filesystem> // 文件系统库 需要C++17标准
 #include <iostream>   // 标准输入输出流
-#include <fstream>    // 文件流
-#include <iomanip>    // 用于格式化输出
 
 #include "ANTLRInputStream.h" // antlr头文件 位于deps/antlr4-runtime目录下
 #include "CplabLexer.h"       // 词法分析器头文件 位于grammar目录下
