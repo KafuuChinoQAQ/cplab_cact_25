@@ -7,11 +7,11 @@
 #include "syntax_error_listener.h" // 语法错误监听器头文件 位于src目录下
 
 // 递归打印语法树，包含语法单元类型
-void printParseTree(antlr4::tree::ParseTree *tree, antlr4::Parser *parser, const std::string &prefix = "", bool isLast = true)
+void printParseTree(antlr4::tree::ParseTree *tree, antlr4::Parser *parser, std::ostream &out, const std::string &prefix = "", bool isLast = true)
 {
     // 打印当前节点
-    std::cout << prefix;
-    std::cout << (isLast ? "└── " : "├── ");
+    out << prefix;
+    out << (isLast ? "└── " : "├── ");
 
     // 获取节点文本
     std::string nodeText = tree->getText();
@@ -22,18 +22,18 @@ void printParseTree(antlr4::tree::ParseTree *tree, antlr4::Parser *parser, const
     }
 
     // 打印节点信息
-    std::cout << nodeText;
+    out << nodeText;
     if (!ruleName.empty()) {
-        std::cout << " (" << ruleName << ")";
+        out << " (" << ruleName << ")";
     }
-    std::cout << std::endl;
+    out << std::endl;
 
     // 获取子节点数量
     size_t childCount = tree->children.size();
     for (size_t i = 0; i < childCount; ++i)
     {
         // 递归打印子节点
-        printParseTree(tree->children[i], parser, prefix + (isLast ? "    " : "│   "), i == childCount - 1);
+        printParseTree(tree->children[i], parser, out, prefix + (isLast ? "    " : "│   "), i == childCount - 1);
     }
 }
 
@@ -81,8 +81,10 @@ int main(int argc, const char *argv[])
         }
         // 打印语法分析树（树形结构，包含语法单元类型）
         std::cout << "\033[34mSyntax Tree (Tree View):\033[0m" << std::endl;
-        printParseTree(tree, &parser); // 调用递归函数打印树形结构
-        std::cout << std::endl;
+        std::ofstream outfile("syntax_tree.txt", std::ios::app); // 以追加模式输出到文件
+        printParseTree(tree, &parser, outfile); // 调用递归函数打印树形结构到文件
+        outfile.close();
+        std::cout << "语法树已输出到 syntax_tree.txt" << std::endl << std::endl;
 
         std::cout << "\033[32m" << filename << ": Parsing succeeded." << "\033[0m" << std::endl << std::endl; // 输出成功信息
         return 0;
