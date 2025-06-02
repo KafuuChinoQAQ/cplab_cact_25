@@ -5,9 +5,11 @@
 #include "CplabLexer.h"       // 词法分析器头文件 位于grammar目录下
 #include "CplabParser.h"      // 语法分析器头文件 位于grammar目录下
 #include "syntax_error_listener.h" // 语法错误监听器头文件 位于src目录下
+#include "ast_generator.h" // AST生成器头文件 位于src目录下
+#include "variable_scope_generator.h" // 作用域生成器头文件 位于src目录下
 
 // 递归打印语法树，包含语法单元类型
-void printParseTree(antlr4::tree::ParseTree *tree, antlr4::Parser *parser, std::ostream &out, const std::string &prefix = "", bool isLast = true)
+void printParseTree(antlr4::tree::ParseTree *tree, antlr4::Parser *parser, std::ostream &out, const std::string &prefix = "", bool isLast = true, int childIndex = -1)
 {
     // 打印当前节点
     out << prefix;
@@ -15,13 +17,20 @@ void printParseTree(antlr4::tree::ParseTree *tree, antlr4::Parser *parser, std::
 
     // 获取节点文本
     std::string nodeText = tree->getText();
-    // 获取语法单元类型（规则名称）
+    // 获取语法单元类型（规则名称）和index
     std::string ruleName = "";
+    int ruleIndex = -1;
+    // 如果节点是ParserRuleContext类型，则获取规则名称
     if (auto *ctx = dynamic_cast<antlr4::ParserRuleContext *>(tree)) {
-        ruleName = parser->getRuleNames()[ctx->getRuleIndex()];
+        ruleIndex = ctx->getRuleIndex();
+        ruleName = parser->getRuleNames()[ruleIndex];
     }
-
-    // 打印节点信息
+    // 如果节点是TerminalNode类型，则获取token类型
+    else if (auto *terminalNode = dynamic_cast<antlr4::tree::TerminalNode *>(tree)) {
+        ruleIndex = terminalNode->getSymbol()->getType();
+        ruleName = parser->getVocabulary().getSymbolicName(ruleIndex);
+    }
+    // 打印节点信息:先输出index再输出rule_name
     out << nodeText;
     if (!ruleName.empty()) {
         out << " (" << ruleName << ")";
@@ -33,7 +42,7 @@ void printParseTree(antlr4::tree::ParseTree *tree, antlr4::Parser *parser, std::
     for (size_t i = 0; i < childCount; ++i)
     {
         // 递归打印子节点
-        printParseTree(tree->children[i], parser, out, prefix + (isLast ? "    " : "│   "), i == childCount - 1);
+        printParseTree(tree->children[i], parser, out, prefix + (isLast ? "    " : "│   "), i == childCount - 1, static_cast<int>(i));
     }
 }
 
@@ -79,14 +88,33 @@ int main(int argc, const char *argv[])
             std::cerr << "\033[31m" << filename << ": Error: Unmatched input detected after parsing.\033[0m" << std::endl << std::endl;
             return 1;
         }
-        // 打印语法分析树（树形结构，包含语法单元类型）
-        std::cout << "\033[34mSyntax Tree (Tree View):\033[0m" << std::endl;
-        std::ofstream outfile("syntax_tree.txt", std::ios::app); // 以追加模式输出到文件
-        printParseTree(tree, &parser, outfile); // 调用递归函数打印树形结构到文件
-        outfile.close();
-        std::cout << "语法树已输出到 syntax_tree.txt" << std::endl << std::endl;
 
-        std::cout << "\033[32m" << filename << ": Parsing succeeded." << "\033[0m" << std::endl << std::endl; // 输出成功信息
+        // 设置输出目录为./output,文件名为输入文件名后加.txt后缀
+        std::string output_filepath = "./output/" + filename + ".txt";
+
+        // 打印语法分析树到文本文件中（树形结构，包含语法单元类型）
+        std::cout << "\033[34mSyntax Tree (Tree View):\033[0m" << std::endl;
+        std::ofstream outfile_0(output_filepath); // 以追加模式输出到文件
+        printParseTree(tree, &parser, outfile_0); // 调用递归函数打印树形结构到文件
+        outfile_0.close();
+        std::cout << "语法树已输出" << std::endl << std::endl;
+        
+        // 生成AST
+        ast_node ast_root = cplab_ast_generator::ast_generator(tree, &parser); // 调用AST生成器函数
+        // 打印AST到文本文件中
+        std::ofstream outfile_1(output_filepath, std::ios::app); // 以追加模式输出到文件
+        cplab_ast_generator::ast_printer(ast_root, outfile_1); // 调用AST打印函数
+        outfile_1.close(); // 关闭输出文件
+        std::cout << "AST已输出" << std::endl << std::endl; // 输出AST成功信息
+
+        // 生成作用域树
+        scope_node scope_root = cplab_variable_scope_generator::variable_scope_generator(ast_root); // 调用作用域生成器函数
+        // 打印作用域树到文本文件中
+        std::ofstream outfile_2(output_filepath, std::ios::app); // 以追加模式输出到文件
+        cplab_variable_scope_generator::variable_scope_printer(scope_root, outfile_2); // 调用作用域打印函数
+        outfile_2.close(); // 关闭输出文件
+        std::cout << "作用域树已输出" << std::endl << std::endl; // 输出作用域树成功信息
+        
         return 0;
     }
     catch (const std::exception &e) // 捕获异常
