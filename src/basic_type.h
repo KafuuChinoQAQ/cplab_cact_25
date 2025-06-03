@@ -16,7 +16,8 @@ struct ast_node {
     scope_node* scope_ptr; // 当前节点所处作用域
     
     ast_node* parent; // 父节点指针
-    std::vector<std::unique_ptr<ast_node>> children; // 子节点列表
+    std::vector<std::unique_ptr<ast_node>> children; // 子节点向量
+    //↑不要修改这些属性
 };
 
 // 存储单个标识符的数据结构
@@ -26,7 +27,7 @@ struct identifier {
     std::string func_return_type; // 函数返回类型 仅func类
     std::string name; // 变量/常量/函数名称
     std::vector<identifier> func_params; // 函数参数列表 仅func类
-
+    int line_number; // 该标识符所在的行号,用于错误提示和静态检查
 };
 
 // 自定义作用域节点类型

@@ -66,6 +66,7 @@ namespace cplab_variable_scope_generator
             id.name = node.children[0]->cact_code; // 获取标识符名称,源自第一个子节点Identifier
             id.func_return_type = ""; // func_return_type字段不使用
             id.func_params.clear(); // 清空函数参数列表
+            id.line_number = node.node_index; // 设置标识符所在的行号,用于错误提示和静态检查
             // 获取标识符的基本类型,来源于其兄弟节点
             std::string basic_type; // 基本类型字符串  
             // 由于常量声明的第一个子节点是"const",所以我们取第二个子节点basic_type的cact_code作为基本类型,而变量声明则该取第一个子节点 
@@ -117,6 +118,7 @@ namespace cplab_variable_scope_generator
             id.func_return_type = node.children[0]->cact_code; // 获取函数返回类型,源自第一个子节点function_type
             id.name = node.children[1]->cact_code; // 获取函数名称,源自第二个子节点Identifier
             id.type = ""; //type字段不使用
+            id.line_number = node.node_index; // 设置标识符所在的行号,用于错误提示和静态检查
             // 获取函数形参列表
             id.func_params.clear(); // 清空函数参数列表
             ast_node* formal_params_node = node.children[3].get(); // 获取函数形参列表节点
@@ -180,6 +182,7 @@ namespace cplab_variable_scope_generator
         out << "Identifiers: " << std::endl; // 打印标识符列表标题
         for (const auto &id : node.identifiers) {
             out << "  - " << id.name; // 打印标识符名称
+            out << " (position: " << id.line_number << ")"; // 打印标识符所对应的结AST结点的位置,和行号本身不太一样
             if (id.is_func) {
                 out << " (Function, Return Type: " << id.func_return_type << ")"; // 如果是函数,打印返回类型
                 // 打印函数参数列表
@@ -191,7 +194,8 @@ namespace cplab_variable_scope_generator
                     out.seekp(-2, std::ios_base::end); // 去掉最后一个逗号和空格
                     out << "]";
                 }
-            } else {
+            }
+            else {
                 out << " (Type: " << id.type << ")"; // 否则打印类型
             }
             out << std::endl; // 换行
