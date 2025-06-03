@@ -7,6 +7,8 @@
 #include "syntax_error_listener.h" // 语法错误监听器头文件 位于src目录下
 #include "ast_generator.h" // AST生成器头文件 位于src目录下
 #include "variable_scope_generator.h" // 作用域生成器头文件 位于src目录下
+#include "ir_generator.h" // IR生成器头文件 位于src目录下
+#include "static_check.h" // 静态检查头文件 位于src目录下
 
 // 递归打印语法树，包含语法单元类型
 void printParseTree(antlr4::tree::ParseTree *tree, antlr4::Parser *parser, std::ostream &out, const std::string &prefix = "", bool isLast = true, int childIndex = -1)
@@ -46,6 +48,7 @@ void printParseTree(antlr4::tree::ParseTree *tree, antlr4::Parser *parser, std::
     }
 }
 
+// 编译器主函数
 int main(int argc, const char *argv[])
 {
     if (argc != 2)
@@ -124,6 +127,8 @@ int main(int argc, const char *argv[])
         // 以上为静态检查部分
 
         // 生成IR代码
+
+    
         return 0;
     }
     catch (const std::exception &e) // 捕获异常
