@@ -2,6 +2,7 @@
 #ifndef BASIC_TYPE_H
 #define BASIC_TYPE_H
 #include "antlr4-runtime.h"
+#include <list>
 struct ast_node; // 前向声明ast_node结构体
 struct identifier; // 前向声明identifier结构体
 struct scope_node; // 前向声明scope_node结构体
@@ -10,11 +11,12 @@ struct scope_node; // 前向声明scope_node结构体
 struct ast_node {
     int node_index; // 节点索引
     std::string name; // 节点名称
-    ast_node* parent; // 父节点指针
-    std::vector<ast_node> children; // 子节点列表
     std::string cact_code; // 当前节点对应的cact源代码片段
     std::string ir_code; // 当前节点对应的IR代码片段
     scope_node* scope_ptr; // 当前节点所处作用域
+    
+    ast_node* parent; // 父节点指针
+    std::vector<std::unique_ptr<ast_node>> children; // 子节点列表
 };
 
 // 存储单个标识符的数据结构
@@ -31,7 +33,7 @@ struct identifier {
 struct scope_node {
     std::string name; // 节点名称
     scope_node *parent; // 父作用域指针
-    std::vector<scope_node> children; // 子节点列表
+    std::list<scope_node> children; // 子节点列表 使用list防止在增加子节点时已有节点的地址发生变化
     std::vector<identifier> identifiers; // 该作用域下的标识符
 };
 #endif
