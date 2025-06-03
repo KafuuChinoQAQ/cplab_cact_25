@@ -28,6 +28,7 @@ struct identifier {
     std::string name; // 变量/常量/函数名称
     std::vector<identifier> func_params; // 函数参数列表 仅func类
     int line_number; // 该标识符所在的行号,用于错误提示和静态检查
+    int id_index; //该id的全局索引,用于确定IR代码生成时的唯一符号
 };
 
 // 自定义作用域节点类型

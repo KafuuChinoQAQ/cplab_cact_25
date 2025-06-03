@@ -6,6 +6,7 @@ namespace cplab_variable_scope_generator
     // 基本的思想是,对AST进行先序遍历,每当遇到"{"时,创建一个新的子节点并进入
     //                              每当遇到id的声明时,在当前节点创建对应条目
     //                              每当遇到"}"时,返回上一级作用域
+    int id_index = 1; // 全局标识符索引,用于为每个标识符分配唯一的id_index
     scope_node variable_scope_generator(ast_node &ast_node)
     {
         // 创建作用域树根节点
@@ -62,6 +63,7 @@ namespace cplab_variable_scope_generator
         {
             // 创建一个新的标识符
             identifier id;
+            id.id_index = id_index++; // 为标识符分配唯一的id_index
             id.is_func = false; // 标识符不是函数
             id.name = node.children[0]->cact_code; // 获取标识符名称,源自第一个子节点Identifier
             id.func_return_type = ""; // func_return_type字段不使用
@@ -114,6 +116,7 @@ namespace cplab_variable_scope_generator
         {
             // 创建一个新的标识符
             identifier id;
+            id.id_index = id_index++; // 为标识符分配唯一的id_index
             id.is_func = true; // 标识符是一个函数
             id.func_return_type = node.children[0]->cact_code; // 获取函数返回类型,源自第一个子节点function_type
             id.name = node.children[1]->cact_code; // 获取函数名称,源自第二个子节点Identifier
@@ -181,7 +184,7 @@ namespace cplab_variable_scope_generator
         out << "Scope: " << node.name << std::endl; // 打印作用域名称
         out << "Identifiers: " << std::endl; // 打印标识符列表标题
         for (const auto &id : node.identifiers) {
-            out << "  - " << id.name; // 打印标识符名称
+            out << "  %" << id.id_index << ": " << id.name; // 打印标识符的全局索引和名称
             out << " (position: " << id.line_number << ")"; // 打印标识符所对应的结AST结点的位置,和行号本身不太一样
             if (id.is_func) {
                 out << " (Function, Return Type: " << id.func_return_type << ")"; // 如果是函数,打印返回类型
