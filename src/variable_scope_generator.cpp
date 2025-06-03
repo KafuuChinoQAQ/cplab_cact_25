@@ -182,6 +182,15 @@ namespace cplab_variable_scope_generator
             out << "  - " << id.name; // 打印标识符名称
             if (id.is_func) {
                 out << " (Function, Return Type: " << id.func_return_type << ")"; // 如果是函数,打印返回类型
+                // 打印函数参数列表
+                if (!id.func_params.empty()) {
+                    out << " [Params: ";
+                    for (const auto &param : id.func_params) {
+                        out << param.name << " (" << param.type << "), "; // 打印每个参数的名称和类型
+                    }
+                    out.seekp(-2, std::ios_base::end); // 去掉最后一个逗号和空格
+                    out << "]";
+                }
             } else {
                 out << " (Type: " << id.type << ")"; // 否则打印类型
             }
