@@ -95,14 +95,26 @@ namespace cplab_ir_generator
                     if(current_id->type == "int")
                     {
                         ir_code_2 = "store i32 0, ptr %" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为0
+                        if(current_id->kind == IdKind::Const) // 对于常量,我们同时修改identifier的const_value字段,以便后续使用
+                        {
+                            current_id->const_value = 0;
+                        }
                     }
                     else if(current_id->type == "float")
                     {
                         ir_code_2 = "store float 0.0, ptr %" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为0.0
+                        if(current_id->kind == IdKind::Const)
+                        {
+                            current_id->const_value = 0.0f;
+                        }
                     }
                     else if(current_id->type == "char")
                     {
                         ir_code_2 = "store i8 0, ptr %" + std::to_string(current_id->id_index) + ", align 1\n"; // 初始化为'\0'
+                        if(current_id->kind == IdKind::Const)
+                        {
+                            current_id->const_value = '\0';
+                        }
                     }
                     // 访问未初始化的数组是未定义的行为,这里我们不对其进行隐式初始化
                 }
