@@ -52,7 +52,9 @@ namespace cplab_ast_generator
             out << "cact_code: " << node.cact_code << std::endl; // 打印cact源码
         }
         if (!node.ir_code.empty()) {
-            out << "ir_code: " << node.ir_code << std::endl; // 打印IR代码
+            out << "ir_code: " << std::endl; // 打印IR代码
+            out << "--------------------" << std::endl;
+            out << node.ir_code << "--------------------" << std::endl;
         }
         if (node.scope_ptr != nullptr) {
             out << "scope: " << node.scope_ptr->name << std::endl; // 打印作用域名称

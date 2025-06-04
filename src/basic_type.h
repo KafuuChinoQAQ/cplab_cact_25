@@ -3,6 +3,8 @@
 #define BASIC_TYPE_H
 #include "antlr4-runtime.h"
 #include <list>
+#include <variant>
+
 struct ast_node; // 前向声明ast_node结构体
 struct identifier; // 前向声明identifier结构体
 struct scope_node; // 前向声明scope_node结构体
@@ -21,14 +23,22 @@ struct ast_node {
 };
 
 // 存储单个标识符的数据结构
+enum class IdKind {
+    Func = 1, // 函数
+    Var = 2,  // 变量
+    Const = 3, // 常量
+    Param = 4 // 函数参数
+};
+
 struct identifier {
-    bool is_func; // 表示该结点是否为func
-    std::string type; // 变量/常量类型 仅非func类
-    std::string func_return_type; // 函数返回类型 仅func类
+    IdKind kind; // 表示该结点是否为函数/变量/常量
+    std::string type; // 变量/常量类型 仅非Func类
+    std::string func_return_type; // 函数返回类型 仅Func类
     std::string name; // 变量/常量/函数名称
-    std::vector<identifier> func_params; // 函数参数列表 仅func类
+    std::vector<identifier> func_params; // 函数参数列表 仅Func类
     int line_number; // 该标识符所在的行号,用于错误提示和静态检查
     int id_index; //该id的全局索引,用于确定IR代码生成时的唯一符号
+    std::variant<int, float, char> const_value; // 常量值,仅Const类
 };
 
 // 自定义作用域节点类型
@@ -38,4 +48,5 @@ struct scope_node {
     std::list<scope_node> children; // 子节点列表 使用list防止在增加子节点时已有节点的地址发生变化
     std::vector<identifier> identifiers; // 该作用域下的标识符
 };
+
 #endif

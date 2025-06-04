@@ -1,0 +1,406 @@
+└── intmain(){inta=2*3;returna;} (compilation_unit)
+    └── intmain(){inta=2*3;returna;} (function_definition)
+        ├── int (function_type)
+        │   └── int (Int)
+        ├── main (Identifier)
+        ├── ( (LeftParenthesis)
+        ├── ) (RightParenthesis)
+        └── {inta=2*3;returna;} (block)
+            ├── { (LeftBrace)
+            ├── inta=2*3; (block_item)
+            │   └── inta=2*3; (declaration)
+            │       └── inta=2*3; (variable_declaration)
+            │           ├── int (basic_type)
+            │           │   └── int (Int)
+            │           ├── a=2*3 (variable_definition)
+            │           │   ├── a (Identifier)
+            │           │   ├── = (Equal)
+            │           │   └── 2*3 (constant_initial_value)
+            │           │       └── 2*3 (constant_expression)
+            │           │           └── 2*3 (additive_expression)
+            │           │               └── 2*3 (multiplicative_expression)
+            │           │                   ├── 2 (multiplicative_expression)
+            │           │                   │   └── 2 (unary_expression)
+            │           │                   │       └── 2 (primary_expression)
+            │           │                   │           └── 2 (number)
+            │           │                   │               └── 2 (IntegerConstant)
+            │           │                   ├── * (Asterisk)
+            │           │                   └── 3 (unary_expression)
+            │           │                       └── 3 (primary_expression)
+            │           │                           └── 3 (number)
+            │           │                               └── 3 (IntegerConstant)
+            │           └── ; (Semicolon)
+            ├── returna; (block_item)
+            │   └── returna; (statement)
+            │       ├── return (Return)
+            │       ├── a (expression)
+            │       │   └── a (additive_expression)
+            │       │       └── a (multiplicative_expression)
+            │       │           └── a (unary_expression)
+            │       │               └── a (primary_expression)
+            │       │                   └── a (left_value)
+            │       │                       └── a (Identifier)
+            │       └── ; (Semicolon)
+            └── } (RightBrace)
+
+Variable Scope Tree:
+Scope: global
+Identifiers: 
+  %1: main (position: 1) (Function, Return Type: int)
+Children Scopes: 
+  - Block_0
+
+Scope: Block_0
+Identifiers: 
+  %2: a (position: 14) (Type: int)
+Children Scopes: 
+
+
+Abstract Syntax Tree (AST):
+0. compilation_unit
+cact_code: intmain(){inta=2*3;returna;}
+scope: null
+parent: null
+children: [
+  1. function_definition
+]
+
+1. function_definition
+cact_code: intmain(){inta=2*3;returna;}
+scope: global
+parent: 0. compilation_unit
+children: [
+  2. function_type
+  4. Identifier
+  5. LeftParenthesis
+  6. RightParenthesis
+  7. block
+]
+
+2. function_type
+cact_code: int
+scope: global
+parent: 1. function_definition
+children: [
+  3. Int
+]
+
+3. Int
+cact_code: int
+scope: global
+parent: 2. function_type
+children: []
+
+4. Identifier
+cact_code: main
+scope: global
+parent: 1. function_definition
+children: []
+
+5. LeftParenthesis
+cact_code: (
+scope: global
+parent: 1. function_definition
+children: []
+
+6. RightParenthesis
+cact_code: )
+scope: global
+parent: 1. function_definition
+children: []
+
+7. block
+cact_code: {inta=2*3;returna;}
+scope: Block_0
+parent: 1. function_definition
+children: [
+  8. LeftBrace
+  9. block_item
+  32. block_item
+  43. RightBrace
+]
+
+8. LeftBrace
+cact_code: {
+scope: Block_0
+parent: 7. block
+children: []
+
+9. block_item
+cact_code: inta=2*3;
+scope: Block_0
+parent: 7. block
+children: [
+  10. declaration
+]
+
+10. declaration
+cact_code: inta=2*3;
+ir_code: 
+--------------------
+%2 = alloca i32, align 4
+--------------------
+scope: Block_0
+parent: 9. block_item
+children: [
+  11. variable_declaration
+]
+
+11. variable_declaration
+cact_code: inta=2*3;
+ir_code: 
+--------------------
+%2 = alloca i32, align 4
+--------------------
+scope: Block_0
+parent: 10. declaration
+children: [
+  12. basic_type
+  14. variable_definition
+  31. Semicolon
+]
+
+12. basic_type
+cact_code: int
+scope: Block_0
+parent: 11. variable_declaration
+children: [
+  13. Int
+]
+
+13. Int
+cact_code: int
+scope: Block_0
+parent: 12. basic_type
+children: []
+
+14. variable_definition
+cact_code: a=2*3
+ir_code: 
+--------------------
+%2 = alloca i32, align 4
+--------------------
+scope: Block_0
+parent: 11. variable_declaration
+children: [
+  15. Identifier
+  16. Equal
+  17. constant_initial_value
+]
+
+15. Identifier
+cact_code: a
+scope: Block_0
+parent: 14. variable_definition
+children: []
+
+16. Equal
+cact_code: =
+scope: Block_0
+parent: 14. variable_definition
+children: []
+
+17. constant_initial_value
+cact_code: 2*3
+scope: Block_0
+parent: 14. variable_definition
+children: [
+  18. constant_expression
+]
+
+18. constant_expression
+cact_code: 2*3
+scope: Block_0
+parent: 17. constant_initial_value
+children: [
+  19. additive_expression
+]
+
+19. additive_expression
+cact_code: 2*3
+scope: Block_0
+parent: 18. constant_expression
+children: [
+  20. multiplicative_expression
+]
+
+20. multiplicative_expression
+cact_code: 2*3
+scope: Block_0
+parent: 19. additive_expression
+children: [
+  21. multiplicative_expression
+  26. Asterisk
+  27. unary_expression
+]
+
+21. multiplicative_expression
+cact_code: 2
+scope: Block_0
+parent: 20. multiplicative_expression
+children: [
+  22. unary_expression
+]
+
+22. unary_expression
+cact_code: 2
+scope: Block_0
+parent: 21. multiplicative_expression
+children: [
+  23. primary_expression
+]
+
+23. primary_expression
+cact_code: 2
+scope: Block_0
+parent: 22. unary_expression
+children: [
+  24. number
+]
+
+24. number
+cact_code: 2
+scope: Block_0
+parent: 23. primary_expression
+children: [
+  25. IntegerConstant
+]
+
+25. IntegerConstant
+cact_code: 2
+scope: Block_0
+parent: 24. number
+children: []
+
+26. Asterisk
+cact_code: *
+scope: Block_0
+parent: 20. multiplicative_expression
+children: []
+
+27. unary_expression
+cact_code: 3
+scope: Block_0
+parent: 20. multiplicative_expression
+children: [
+  28. primary_expression
+]
+
+28. primary_expression
+cact_code: 3
+scope: Block_0
+parent: 27. unary_expression
+children: [
+  29. number
+]
+
+29. number
+cact_code: 3
+scope: Block_0
+parent: 28. primary_expression
+children: [
+  30. IntegerConstant
+]
+
+30. IntegerConstant
+cact_code: 3
+scope: Block_0
+parent: 29. number
+children: []
+
+31. Semicolon
+cact_code: ;
+scope: Block_0
+parent: 11. variable_declaration
+children: []
+
+32. block_item
+cact_code: returna;
+scope: Block_0
+parent: 7. block
+children: [
+  33. statement
+]
+
+33. statement
+cact_code: returna;
+scope: Block_0
+parent: 32. block_item
+children: [
+  34. Return
+  35. expression
+  42. Semicolon
+]
+
+34. Return
+cact_code: return
+scope: Block_0
+parent: 33. statement
+children: []
+
+35. expression
+cact_code: a
+scope: Block_0
+parent: 33. statement
+children: [
+  36. additive_expression
+]
+
+36. additive_expression
+cact_code: a
+scope: Block_0
+parent: 35. expression
+children: [
+  37. multiplicative_expression
+]
+
+37. multiplicative_expression
+cact_code: a
+scope: Block_0
+parent: 36. additive_expression
+children: [
+  38. unary_expression
+]
+
+38. unary_expression
+cact_code: a
+scope: Block_0
+parent: 37. multiplicative_expression
+children: [
+  39. primary_expression
+]
+
+39. primary_expression
+cact_code: a
+scope: Block_0
+parent: 38. unary_expression
+children: [
+  40. left_value
+]
+
+40. left_value
+cact_code: a
+scope: Block_0
+parent: 39. primary_expression
+children: [
+  41. Identifier
+]
+
+41. Identifier
+cact_code: a
+scope: Block_0
+parent: 40. left_value
+children: []
+
+42. Semicolon
+cact_code: ;
+scope: Block_0
+parent: 33. statement
+children: []
+
+43. RightBrace
+cact_code: }
+scope: Block_0
+parent: 7. block
+children: []
+

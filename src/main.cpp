@@ -108,12 +108,12 @@ int main(int argc, const char *argv[])
         // 生成作用域树
         scope_node scope_root = cplab_variable_scope_generator::variable_scope_generator(ast_root); // 调用作用域生成器函数
 
-        // 打印AST到文本文件中
-        std::ofstream outfile_1(output_filepath, std::ios::app); // 以追加模式输出到文件
-        outfile_1 << std::endl << "Abstract Syntax Tree (AST):" << std::endl; // 输出AST标题
-        cplab_ast_generator::ast_printer(ast_root, outfile_1); // 调用AST打印函数
-        outfile_1.close(); // 关闭输出文件
-        std::cout << "AST已输出" << std::endl << std::endl; // 输出AST成功信息
+        // // 打印AST到文本文件中
+        // std::ofstream outfile_1(output_filepath, std::ios::app); // 以追加模式输出到文件
+        // outfile_1 << std::endl << "Abstract Syntax Tree (AST):" << std::endl; // 输出AST标题
+        // cplab_ast_generator::ast_printer(ast_root, outfile_1); // 调用AST打印函数
+        // outfile_1.close(); // 关闭输出文件
+        // std::cout << "AST已输出" << std::endl << std::endl; // 输出AST成功信息
 
         // 打印作用域树到文本文件中
         std::ofstream outfile_2(output_filepath, std::ios::app); // 以追加模式输出到文件
@@ -127,8 +127,14 @@ int main(int argc, const char *argv[])
         // 以上为静态检查部分
 
         // 生成IR代码
-
-    
+        cplab_ir_generator::ir_generator(ast_root); // 调用IR生成器函数
+        
+        // 将新生成的AST输出到文本文件中
+        std::ofstream outfile_3(output_filepath, std::ios::app); // 以追加模式输出到文件
+        outfile_3 << std::endl << "Abstract Syntax Tree (AST):" << std::endl; // 输出AST标题
+        cplab_ast_generator::ast_printer(ast_root, outfile_3); // 调用AST打印函数 
+        outfile_3.close(); // 关闭输出文件
+        std::cout << "AST已输出" << std::endl << std::endl; // 输出AST成功信息       
         return 0;
     }
     catch (const std::exception &e) // 捕获异常

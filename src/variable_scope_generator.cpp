@@ -64,7 +64,6 @@ namespace cplab_variable_scope_generator
             // 创建一个新的标识符
             identifier id;
             id.id_index = id_index++; // 为标识符分配唯一的id_index
-            id.is_func = false; // 标识符不是函数
             id.name = node.children[0]->cact_code; // 获取标识符名称,源自第一个子节点Identifier
             id.func_return_type = ""; // func_return_type字段不使用
             id.func_params.clear(); // 清空函数参数列表
@@ -74,10 +73,12 @@ namespace cplab_variable_scope_generator
             // 由于常量声明的第一个子节点是"const",所以我们取第二个子节点basic_type的cact_code作为基本类型,而变量声明则该取第一个子节点 
             if(node.name == "constant_definition")
             {
+                id.kind = IdKind::Const; // 标识符是一个常量
                 basic_type = node.parent->children[1]->cact_code;
             }
             else if(node.name == "variable_definition")
             {
+                id.kind = IdKind::Var; // 标识符是一个变量
                 basic_type = node.parent->children[0]->cact_code; // 获取基本类型
             }
             // 为这个标识符的类型添加上可能存在的数组后缀
@@ -117,7 +118,7 @@ namespace cplab_variable_scope_generator
             // 创建一个新的标识符
             identifier id;
             id.id_index = id_index++; // 为标识符分配唯一的id_index
-            id.is_func = true; // 标识符是一个函数
+            id.kind = IdKind::Func; // 标识符是一个函数
             id.func_return_type = node.children[0]->cact_code; // 获取函数返回类型,源自第一个子节点function_type
             id.name = node.children[1]->cact_code; // 获取函数名称,源自第二个子节点Identifier
             id.type = ""; //type字段不使用
@@ -131,7 +132,7 @@ namespace cplab_variable_scope_generator
                 if (param_node->name == "function_formal_param")
                 {
                     identifier param_id;
-                    param_id.is_func = false; // 标识符不是函数
+                    param_id.kind = IdKind::Param; // 标识符是一个函数参数
                     param_id.name = param_node->children[1]->cact_code; // 获取参数名称,源自第二个子节点Identifier
                     param_id.func_return_type = ""; // func_return_type字段不使用
                     param_id.func_params.clear(); // 清空函数参数列表
@@ -186,8 +187,8 @@ namespace cplab_variable_scope_generator
         for (const auto &id : node.identifiers) {
             out << "  %" << id.id_index << ": " << id.name; // 打印标识符的全局索引和名称
             out << " (position: " << id.line_number << ")"; // 打印标识符所对应的结AST结点的位置,和行号本身不太一样
-            if (id.is_func) {
-                out << " (Function, Return Type: " << id.func_return_type << ")"; // 如果是函数,打印返回类型
+            if (id.kind == IdKind::Func) {
+                out << " (Return Type: " << id.func_return_type << ")"; // 如果是函数,打印返回类型
                 // 打印函数参数列表
                 if (!id.func_params.empty()) {
                     out << " [Params: ";
