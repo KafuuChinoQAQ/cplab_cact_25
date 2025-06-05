@@ -184,8 +184,20 @@ namespace cplab_variable_scope_generator
         // 打印当前作用域节点信息
         out << "Scope: " << node.name << std::endl; // 打印作用域名称
         out << "Identifiers: " << std::endl; // 打印标识符列表标题
+
+        // 遍历并打印当前作用域的标识符
         for (const auto &id : node.identifiers) {
-            out << "  %" << id.id_index << ": " << id.name; // 打印标识符的全局索引和名称
+            out << "  %" << id.id_index << ": "; // 打印标识符的全局索引
+            if(id.kind == IdKind::Func) {
+                out << "Func "; // 如果是函数,打印Func
+            }
+            else if(id.kind == IdKind::Var) {
+                out << "Var "; // 如果是变量,打印Var
+            }
+            else if(id.kind == IdKind::Const) {
+                out << "Const "; // 如果是常量,打印Const
+            }
+            out << id.name; // 打印标识符名称
             out << " (position: " << id.line_number << ")"; // 打印标识符所对应的结AST结点的位置,和行号本身不太一样
             if (id.kind == IdKind::Func) {
                 out << " (Return Type: " << id.func_return_type << ")"; // 如果是函数,打印返回类型
@@ -201,9 +213,40 @@ namespace cplab_variable_scope_generator
             }
             else {
                 out << " (Type: " << id.type << ")"; // 否则打印类型
+                if(id.kind == IdKind::Const) {
+                    // 如果是常量,打印初始值
+                    out << " (Initial Value: ";
+                    if (std::holds_alternative<int>(id.const_value)) {
+                        out << std::get<int>(id.const_value);
+                    } else if (std::holds_alternative<float>(id.const_value)) {
+                        out << std::get<float>(id.const_value);
+                    } else if (std::holds_alternative<char>(id.const_value)) {
+                        out << "'" << std::get<char>(id.const_value) << "'";
+                    } else if (std::holds_alternative<std::vector<int>>(id.const_value)) {
+                        out << "[";
+                        for (const auto &val : std::get<std::vector<int>>(id.const_value)) {
+                            out << val << " ";
+                        }
+                        out << "]";
+                    } else if (std::holds_alternative<std::vector<float>>(id.const_value)) {
+                        out << "[";
+                        for (const auto &val : std::get<std::vector<float>>(id.const_value)) {
+                            out << val << " ";
+                        }
+                        out << "]";
+                    } else if (std::holds_alternative<std::vector<char>>(id.const_value)) {
+                        out << "[";
+                        for (const auto &val : std::get<std::vector<char>>(id.const_value)) {
+                            out << "'" << val << "' ";
+                        }
+                        out << "]";
+                    }
+                    out << ")";
+                }
             }
             out << std::endl; // 换行
         }
+
         out << "Children Scopes: " << std::endl; // 打印子作用域标题
         for (const auto &child : node.children) {
             out << "  - " << child.name << std::endl; // 打印子作用域名称
