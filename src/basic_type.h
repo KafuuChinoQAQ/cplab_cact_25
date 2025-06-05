@@ -38,7 +38,7 @@ struct identifier {
     std::vector<identifier> func_params; // 函数参数列表 仅Func类
     int line_number; // 该标识符所在的行号,用于错误提示和静态检查
     int id_index; //该id的全局索引,用于确定IR代码生成时的唯一符号
-    std::variant<int, float, char,std::vector<int>, std::vector<float>, std::vector<char>> const_value; // 常量初始值,仅Const类
+    std::variant<int, float, char> const_value; // 常量值,仅Const类
 };
 
 // 自定义作用域节点类型
