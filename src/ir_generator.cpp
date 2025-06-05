@@ -1,4 +1,4 @@
-#include "i,_generator.h"
+#include "ir_generator.h"
 #include <regex>
 #include <string>
 #include <vector>
@@ -425,7 +425,7 @@ namespace cplab_ir_generator
     {
         if(node.name == "expression")
         {
-            // 根据推导式ConstExp → AddExp 
+            // 根据推导式ConstExp → AddExp
         }
     }
 }
