@@ -1,13 +1,27 @@
 #include "ir_generator.h"
 #include <regex>
-#include <string>
+#include <string>,
 #include <vector>
 namespace cplab_ir_generator
 {
     // 总入口
     void ir_generator(ast_node &node)
     {
+        // 先生成declaration相关结点的IR代码
         ir_gen_declaration(node);
+        // 然后遍历所有节点,依次生成所有expression和condition结点的IR代码
+        for (auto &child : node.children)
+        {
+            if (child->name == "condition")
+            {
+                // 计算表达式的值,并将IR代码添加到节点的ir_code属性上
+                calculate_expression_value(*child,"bool"); // 传入子节点的类型
+            }
+            else
+            {
+                ir_generator(*child); // 递归调用
+            }
+        }
     }
     
     // 生成declaration相关结点的IR代码
@@ -418,14 +432,172 @@ namespace cplab_ir_generator
         }
     }
 
-    // 计算一个任意的变量表达式的值,接受一个expression节点,将ir_code添加到节点的属性上
-    // 每一个表达式类节点用于暂存结果的寄存器名称应当为"%exp_node.node_index"
+    // 计算一个任意的变量表达式的值,接受一个expression节点,将ir_code添加到节点的属性上同时返回
+    // 每一个表达式类节点用于暂存结果的寄存器名称应当为"%node_index"
     // 这里因为比较繁琐,就不检查传入的节点类型是否正确了
+    // 这个函数应当从expression或condition节点开始递归,当从expression开始时,type可能是int float char,当从condition开始时,type可能是bool
     std::string calculate_expression_value(ast_node &node, std::string type)
     {
+        auto [reg_type, reg_align] = get_reg_type_and_align(type);
+        printf("Calculating for node %d.%s of type %s\n", node.node_index, node.name.c_str(), type.c_str());
+        printf("reg_type: %s, reg_align: %s\n", reg_type.c_str(), reg_align.c_str());
+        std::string ir_code = ""; // 用于存储当前节点的IR代码
         if(node.name == "expression")
         {
-            // 根据推导式ConstExp → AddExp
+
+            // 根据推导式 expression: additive_expression; 知,expression节点的子节点只有一个,即additive_expression
+            ir_code = exp_gen_ir_code_from_only_child(node, type); // 生成只有一个子节点的exp节点的IR代码并将其返回
+            node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+            return ir_code; // 返回当前节点的IR代码
+        }
+        else if(node.name == "condition")
+        {
+            // 根据推导式 condition: logical_or_expression; 知,condition节点的子节点只有一个,即logical_or_expression
+            ir_code = exp_gen_ir_code_from_only_child(node, type); // 生成只有一个子节点的exp节点的IR代码并将其返回
+            node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+            return ir_code; // 返回当前节点的IR代码
+        }
+        else if(node.name == "logical_or_expression")
+        {
+            // 根据推导式 logical_or_expression: logical_and_expression | logical_or_expression LogicalOr logical_and_expression;
+            // 如果子节点只有logical_and_expression,则直接重用子节点的ir_code
+            if(node.children.size() == 1 && node.children[0]->name == "logical_and_expression")
+            {
+                ir_code = calculate_expression_value(*node.children[0], type); // 直接重用子节点的ir_code
+                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                return ir_code; // 返回当前节点的IR代码
+            }
+            // 否则,说明该节点有三个子节点,即 logical_or_expression "||" logical_and_expression
+            else
+            {
+                // 分别计算前后两个逻辑表达式的值
+                std::string left_ir_code = calculate_expression_value(*node.children[0], type); // 计算左侧逻辑表达式的值
+                std::string right_ir_code = calculate_expression_value(*node.children[2], type); // 计算右侧逻辑表达式的值
+                // 生成临时寄存器名称
+                std::string left_reg_name = "%" + std::to_string(node.children[0]->node_index); // 左侧子节点的临时寄存器名称
+                std::string right_reg_name = "%" + std::to_string(node.children[2]->node_index); // 右侧子节点的临时寄存器名称
+                std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
+                std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
+                // 将两个子节点临时寄存器的值进行逻辑运算后赋值给当前节点的临时寄存器 对于lor节点来说,子节点临时寄存器都应该是指向i1的指针类
+                std::string left_load = tmp_reg_name + "_l = load i1, ptr " + left_reg_name + ", align 1\n";
+                std::string right_load = tmp_reg_name + "_r = load i1, ptr " + right_reg_name + ", align 1\n";
+                // 这里是lor运算
+                std::string or_inst = tmp_reg_name + "_or = or i1 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n";
+                std::string store_inst = "store i1 " + tmp_reg_name + "_or, ptr " + current_reg_name + ", align 1\n";
+                ir_code = left_ir_code + right_ir_code + left_load + right_load + or_inst + store_inst;
+                node.ir_code = ir_code;
+                return ir_code;
+            }
+        }
+        else if(node.name == "logical_and_expression")
+        {
+            // 根据推导式logical_and_expression: equal_expression | logical_and_expression LogicalAnd equal_expression;
+            // 如果子节点只有equal_expression,则直接重用子节点的ir_code
+            if(node.children.size() == 1 && node.children[0]->name == "equal_expression")
+            {
+                ir_code = calculate_expression_value(*node.children[0], type); // 直接重用子节点的ir_code
+                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                return ir_code; // 返回当前节点的IR代码
+            }
+            // 否则,说明该节点有三个子节点,即 logical_and_expression "&&" equal_expression
+            else
+            {
+                // 分别计算前后两个逻辑表达式的值
+                std::string left_ir_code = calculate_expression_value(*node.children[0], type); // 计算左侧逻辑表达式的值
+                std::string right_ir_code = calculate_expression_value(*node.children[2], type); // 计算右侧逻辑表达式的值
+                // 生成临时寄存器名称
+                std::string left_reg_name = "%" + std::to_string(node.children[0]->node_index); // 左侧子节点的临时寄存器名称
+                std::string right_reg_name = "%" + std::to_string(node.children[2]->node_index); // 右侧子节点的临时寄存器名称
+                std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
+                std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
+                // 将两个子节点临时寄存器的值进行逻辑运算后赋值给当前节点的临时寄存器 对于land节点来说,子节点临时寄存器都应该是指向i1的指针类
+                std::string left_load = tmp_reg_name + "_l = load i1, ptr " + left_reg_name + ", align 1\n";
+                std::string right_load = tmp_reg_name + "_r = load i1, ptr " + right_reg_name + ", align 1\n";
+                // 这里是land运算
+                std::string and_inst = tmp_reg_name + "_and = and i1 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n";
+                std::string store_inst = "store i1 " + tmp_reg_name + "_and, ptr " + current_reg_name + ", align 1\n";
+                ir_code = left_ir_code + right_ir_code + left_load + right_load + and_inst + store_inst;
+                node.ir_code = ir_code;
+                return ir_code;
+            }
+        }
+        else if(node.name == "equal_expression")
+        {
+            // 根据推导式equal_expression: relational_expression | equal_expression (LogicalEqual | NotEqual) relational_expression;
+            // 如果子节点只有relational_expression,则直接重用子节点的ir_code
+            if(node.children.size() == 1 && node.children[0]->name == "relational_expression")
+            {
+                ir_code = calculate_expression_value(*node.children[0], type); // 直接重用子节点的ir_code
+                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                return ir_code; // 返回当前节点的IR代码
+            }
+            // 否则,说明该节点有三个子节点,即 equal_expression (LogicalEqual | NotEqual) relational_expression
+            else
+            {
+                // 分别计算前后两个关系表达式的值
+                std::string left_ir_code = calculate_expression_value(*node.children[0], type); // 计算左侧关系表达式的值
+                std::string right_ir_code = calculate_expression_value(*node.children[2], type); // 计算右侧关系表达式的值
+                // 生成临时寄存器名称
+                std::string left_reg_name = "%" + std::to_string(node.children[0]->node_index); // 左侧子节点的临时寄存器名称
+                std::string right_reg_name = "%" + std::to_string(node.children[2]->node_index); // 右侧子节点的临时寄存器名称
+                std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
+                std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
+                // 将两个子节点临时寄存器的值进行逻辑运算后赋值给当前节点的临时寄存器 对于equal_expression节点来说,子节点临时寄存器都应该是指向i1的指针类
+                std::string left_load = tmp_reg_name + "_l = load i1, ptr " + left_reg_name + ", align 1\n";
+                std::string right_load = tmp_reg_name + "_r = load i1, ptr " + right_reg_name + ", align 1\n";
+                // 根据操作符生成对应的比较指令
+                // 我们需要先判断推导出的relational_expression的数据类型,然后根据操作符生成对应的比较指令. 例如当数据类型为int时,我们需要生成i32类型的比较指令
+                std::string cmp_inst;
+                if(node.children[1]->name == "LogicalEqual") 
+                {
+                    //tbd
+                }
+                std::string store_inst = "store i1 " + tmp_reg_name + "_cmp, ptr " + current_reg_name + ", align 1\n"; // 将比较结果存储到当前节点的寄存器
+                ir_code = left_ir_code + right_ir_code + left_load + right_load + cmp_inst + store_inst; // 拼接IR代码
+                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                return ir_code; // 返回当前节点的IR代码
+            }
+        }
+        else
+        {
+            return ""; //暂且返回空字符串喵
+        }
+    }
+
+    // 生成只有一个子节点的exp节点的IR代码并将其返回
+    // 对于某个exp节点,如果其只有一个子节点,则该节点的代码由两部分组成
+    // 第一部分是将子节点的ir_code赋给当前节点,第二部分是将子节点的临时寄存器中的值赋给当前节点的临时寄存器
+    // 这里的临时寄存器名称为"%node_index",即当前节点的索引
+    std::string exp_gen_ir_code_from_only_child(ast_node &node, std::string type)
+    {
+        auto [reg_type, reg_align] = get_reg_type_and_align(type);
+        std::string ir_code = ""; // 用于存储当前节点的IR代码
+        std::string ir_code_from_child = calculate_expression_value(*node.children[0], type); // 先生成子节点的ir_code
+        // 将子节点临时寄存器中的表达式值赋给当前节点的临时寄存器
+        std::string child_reg_name = "%" + std::to_string(node.children[0]->node_index); // 子节点的临时寄存器名称
+        std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
+        std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
+        // 生成赋值代码
+        std::string assign_ir_code_1 = tmp_reg_name + " = load" + reg_type + ", ptr " + child_reg_name + reg_align + "\n"; // 从子节点的寄存器加载值到临时寄存器 
+        std::string assign_ir_code_2 = "store" + reg_type + " " + tmp_reg_name + ", ptr " + current_reg_name + reg_align + "\n"; // 将临时寄存器的值存储到当前节点的寄存器
+        ir_code = ir_code_from_child + assign_ir_code_1 + assign_ir_code_2; // 拼接IR代码
+        node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+        return ir_code; // 返回当前节点的IR代码
+    }
+
+    // 获取寄存器指针类型和对齐方式的函数
+    std::pair<std::string, std::string> get_reg_type_and_align(const std::string& type) 
+    {
+        if(type == "int") {
+            return {"i32", ", align 4"};
+        } else if(type == "float") {
+            return {"float", ", align 4"};
+        } else if(type == "char") {
+            return {"i8", ", align 1"};
+        } else if(type == "bool") {
+            return {"i1", ", align 1"};
+        } else {
+            throw std::runtime_error("Unsupported type: " + type);
         }
     }
 }
