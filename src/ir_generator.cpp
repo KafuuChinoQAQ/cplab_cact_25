@@ -476,10 +476,10 @@ namespace cplab_ir_generator
                 std::string right_reg_name = "%" + std::to_string(node.children[2]->node_index); // 右侧子节点的临时寄存器名称
                 std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
                 std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
-                // 将两个子节点临时寄存器的值进行逻辑运算后赋值给当前节点的临时寄存器 对于lor节点来说,子节点临时寄存器都应该是指向i1的指针类
+                // 加载子节点临时寄存器的值 对于lor节点来说,子节点临时寄存器都应该是指向i1的指针类
                 std::string left_load = tmp_reg_name + "_l = load i1, ptr " + left_reg_name + ", align 1\n";
                 std::string right_load = tmp_reg_name + "_r = load i1, ptr " + right_reg_name + ", align 1\n";
-                // 这里是lor运算
+                // 进行lor运算后赋给当前节点的临时寄存器
                 std::string or_inst = tmp_reg_name + "_or = or i1 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n";
                 std::string store_inst = "store i1 " + tmp_reg_name + "_or, ptr " + current_reg_name + ", align 1\n";
                 ir_code = left_ir_code + right_ir_code + left_load + right_load + or_inst + store_inst;
@@ -508,10 +508,10 @@ namespace cplab_ir_generator
                 std::string right_reg_name = "%" + std::to_string(node.children[2]->node_index); // 右侧子节点的临时寄存器名称
                 std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
                 std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
-                // 将两个子节点临时寄存器的值进行逻辑运算后赋值给当前节点的临时寄存器 对于land节点来说,子节点临时寄存器都应该是指向i1的指针类
+                // 加载子节点临时寄存器的值 对于land节点来说,子节点临时寄存器都应该是指向i1的指针类
                 std::string left_load = tmp_reg_name + "_l = load i1, ptr " + left_reg_name + ", align 1\n";
                 std::string right_load = tmp_reg_name + "_r = load i1, ptr " + right_reg_name + ", align 1\n";
-                // 这里是land运算
+                // 进行land运算后赋给当前节点的临时寄存器
                 std::string and_inst = tmp_reg_name + "_and = and i1 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n";
                 std::string store_inst = "store i1 " + tmp_reg_name + "_and, ptr " + current_reg_name + ", align 1\n";
                 ir_code = left_ir_code + right_ir_code + left_load + right_load + and_inst + store_inst;
@@ -548,23 +548,8 @@ namespace cplab_ir_generator
                 std::string right_reg_name = "%" + std::to_string(node.children[2]->node_index); // 右侧子节点的临时寄存器名称
                 std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
                 std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
-                // 根据操作符和左右子节点的数据类型生成对应的比较指令. 例如当数据类型为int时,我们需要生成i32类型的比较指令
-                std::string cmp_inst;
-                std::string op = node.children[1]->cact_code; // 获取操作符
-                auto [reg_type, reg_align] = get_reg_type_and_align(child_type_l); // 获取寄存器类型和对齐方式
-                if(op == "==") // 如果是等于操作符
-                {
-                    cmp_inst = tmp_reg_name + "_cmp = icmp eq " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成等于比较指令
-                }
-                else if(op == "!=") // 如果是不等于操作符
-                {
-                    cmp_inst = tmp_reg_name + "_cmp = icmp ne " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成不等于比较指令
-                }
-                else
-                {
-                    throw std::runtime_error("Unsupported operator in equal_expression: " + op);
-                }
-                // 将两个子节点临时寄存器的值进行逻辑运算后赋值给当前节点的临时寄存器 对于equal_expression节点来说,子节点临时寄存器指向的数据类型由child_type决定
+                auto [reg_type, reg_align] = get_reg_type_and_align(child_type_l); // 获取寄存器类型和对齐方式并覆盖上层变量
+                // 加载子节点临时寄存器的值 对于equal_expression节点来说,子节点临时寄存器指向的数据类型由child_type决定
                 std::string left_load;
                 std::string right_load;
                 if(child_type_l == "int") // 如果是整数类型
@@ -582,6 +567,186 @@ namespace cplab_ir_generator
                     left_load = tmp_reg_name + "_l = load i8, ptr " + left_reg_name + reg_align + "\n"; // 从左侧子节点的寄存器加载值到临时寄存器
                     right_load = tmp_reg_name + "_r = load i8, ptr " + right_reg_name + reg_align + "\n"; // 从右侧子节点的寄存器加载值到临时寄存器
                 }
+                // 根据操作符和左右子节点的数据类型生成对应的比较指令. 例如当数据类型为int时,我们需要生成i32类型的比较指令
+                std::string cmp_inst;
+                std::string op = node.children[1]->cact_code; // 获取操作符
+                if(child_type_l == "int")
+                {
+                    if(op == "==") // 如果是等于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = icmp eq " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成等于比较指令
+                    }
+                    else if(op == "!=") // 如果是不等于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = icmp ne " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成不等于比较指令
+                    }
+                    else
+                    {
+                        throw std::runtime_error("Unsupported operator in equal_expression: " + op);
+                    }
+                }
+                else if(child_type_l == "float")
+                {
+                    if(op == "==") // 如果是等于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = fcmp oeq " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成等于比较指令
+                    }
+                    else if(op == "!=") // 如果是不等于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = fcmp one " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成不等于比较指令
+                    }
+                    else
+                    {
+                        throw std::runtime_error("Unsupported operator in equal_expression: " + op);
+                    }
+                }
+                else if(child_type_l == "char")
+                {
+                    if(op == "==") // 如果是等于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = icmp eq i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成等于比较指令
+                    }
+                    else if(op == "!=") // 如果是不等于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = icmp ne i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成不等于比较指令
+                    }
+                    else
+                    {
+                        throw std::runtime_error("Unsupported operator in equal_expression: " + op);
+                    }
+                }
+                else
+                {
+                    throw std::runtime_error("Unsupported type in equal_expression: " + child_type_l);
+                }
+                // 将运算后结果赋值给当前节点的临时寄存器
+                std::string store_inst = "store i1 " + tmp_reg_name + "_cmp, ptr " + current_reg_name + ", align 1\n"; // 将比较结果存储到当前节点的寄存器
+                ir_code = left_ir_code + right_ir_code + left_load + right_load + cmp_inst + store_inst; // 拼接IR代码
+                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                return ir_code; // 返回当前节点的IR代码
+            }
+        }
+        else if(node.name == "relational_expression")
+        {
+            // 对于relational_expression节点 我们需要先获取其additive_expression子节点的数据类型,以便于求子节点的ir_code
+            // 该节点中存储的指针可能有两种类型
+            // 对于形如"a"的结点,我们存储int float char类型的指针
+            // 对于形如"a<b"的结点,我们存储bool类型的指针(即i8)
+
+            // 如果只有一个additive_expression子节点,那么我们先确认子节点的类型,然后生成其IR代码并赋给当前节点
+            if(node.children.size() == 1 && node.children[0]->name == "additive_expression")
+            {
+                std::string child_type = get_arithmetic_expression_type(*node.children[0]); // 获取子节点的基本类型
+                ir_code = exp_gen_ir_code_from_only_child(node, child_type); // 生成只有一个子节点的exp节点的IR代码并将其返回
+                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                return ir_code; // 返回当前节点的IR代码
+            }
+            // 否则,说明该节点有三个子节点,即 relational_expression (RelationalOp) additive_expression
+            // 此时,左右两个算术表达式都被直接看做算术表达式,因此传入的type应当是int float char之一
+            // 左子节点会自行判断其数据类型,我们此处需要找到右子节点该有的数据类型
+            else
+            {
+                std::string child_type_r = get_arithmetic_expression_type(*node.children[2]); // 获取右侧子节点的类型
+                // 分别计算前后两个算术表达式的值 对于左子结点,其会自行判断数据类型
+                std::string left_ir_code = calculate_expression_value(*node.children[0], type);
+                std::string right_ir_code = calculate_expression_value(*node.children[2], child_type_r);
+                // 生成临时寄存器名称
+                std::string left_reg_name = "%" + std::to_string(node.children[0]->node_index); // 左侧子节点的临时寄存器名称
+                std::string right_reg_name = "%" + std::to_string(node.children[2]->node_index); // 右侧子节点的临时寄存器名称
+                std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
+                std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
+                auto [reg_type, reg_align] = get_reg_type_and_align(child_type_r); // 获取寄存器类型和对齐方式并覆盖上层变量
+                // 加载子寄存器的值
+                std::string left_load;
+                std::string right_load;
+                if(child_type_r == "int") // 如果是整数类型
+                {
+                    left_load = tmp_reg_name + "_l = load i32, ptr " + left_reg_name + reg_align + "\n"; // 从左侧子节点的寄存器加载值到临时寄存器
+                    right_load = tmp_reg_name + "_r = load i32, ptr " + right_reg_name + reg_align + "\n"; // 从右侧子节点的寄存器加载值到临时寄存器
+                }
+                else if(child_type_r == "float") // 如果是浮点数类型
+                {
+                    left_load = tmp_reg_name + "_l = load float, ptr " + left_reg_name + reg_align + "\n"; // 从左侧子节点的寄存器加载值到临时寄存器
+                    right_load = tmp_reg_name + "_r = load float, ptr " + right_reg_name + reg_align + "\n"; // 从右侧子节点的寄存器加载值到临时寄存器
+                }
+                else if(child_type_r == "char") // 如果是字符类型
+                {
+                    left_load = tmp_reg_name + "_l = load i8, ptr " + left_reg_name + reg_align + "\n"; // 从左侧子节点的寄存器加载值到临时寄存器
+                    right_load = tmp_reg_name + "_r = load i8, ptr " + right_reg_name + reg_align + "\n"; // 从右侧子节点的寄存器加载值到临时寄存器
+                }
+                // 根据操作符和左右子节点的数据类型生成对应的比较指令. 例如当数据类型为int时,我们需要生成i32类型的比较指令
+                std::string cmp_inst;
+                std::string op = node.children[1]->cact_code; // 获取操作符
+                if(child_type_r == "int")
+                {
+                    if(op == "<") // 如果是小于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = icmp slt " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于比较指令
+                    }
+                    else if(op == "<=") // 如果是小于等于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = icmp sle " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于等于比较指令
+                    }
+                    else if(op == ">") // 如果是大于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = icmp sgt " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于比较指令
+                    }
+                    else if(op == ">=") // 如果是大于等于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = icmp sge " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于等于比较指令
+                    }
+                    else
+                    {
+                        throw std::runtime_error("Unsupported operator in relational_expression: " + op);
+                    }
+                }
+                else if(child_type_r == "float")
+                {
+                    if(op == "<") // 如果是小于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = fcmp olt " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于比较指令
+                    }
+                    else if(op == "<=") // 如果是小于等于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = fcmp ole " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于等于比较指令
+                    }
+                    else if(op == ">") // 如果是大于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = fcmp ogt " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于比较指令
+                    }
+                    else if(op == ">=") // 如果是大于等于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = fcmp oge " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于等于比较指令
+                    }
+                    else
+                    {
+                        throw std::runtime_error("Unsupported operator in relational_expression: " + op);
+                    }
+                }
+                else if(child_type_r == "char")
+                {
+                    if(op == "<") // 如果是小于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = icmp slt i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于比较指令
+                    }
+                    else if(op == "<=") // 如果是小于等于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = icmp sle i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于等于比较指令
+                    }
+                    else if(op == ">") // 如果是大于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = icmp sgt i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于比较指令
+                    }
+                    else if(op == ">=") // 如果是大于等于操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = icmp sge i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于等于比较指令
+                    }
+                    else
+                    {
+                        throw std::runtime_error("Unsupported operator in relational_expression: " + op);
+                    }
+                }
+                // 将运算结果存储到当前节点临时寄存器中,这里数据类型要改回bool 即i8
                 std::string store_inst = "store i1 " + tmp_reg_name + "_cmp, ptr " + current_reg_name + ", align 1\n"; // 将比较结果存储到当前节点的寄存器
                 ir_code = left_ir_code + right_ir_code + left_load + right_load + cmp_inst + store_inst; // 拼接IR代码
                 node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
@@ -608,7 +773,7 @@ namespace cplab_ir_generator
         std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
         std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
         // 生成赋值代码
-        std::string assign_ir_code_1 = tmp_reg_name + " = load" + reg_type + ", ptr " + child_reg_name + reg_align + "\n"; // 从子节点的寄存器加载值到临时寄存器 
+        std::string assign_ir_code_1 = tmp_reg_name + " = load " + reg_type + ", ptr " + child_reg_name + reg_align + "\n"; // 从子节点的寄存器加载值到临时寄存器 
         std::string assign_ir_code_2 = "store" + reg_type + " " + tmp_reg_name + ", ptr " + current_reg_name + reg_align + "\n"; // 将临时寄存器的值存储到当前节点的寄存器
         ir_code = ir_code_from_child + assign_ir_code_1 + assign_ir_code_2; // 拼接IR代码
         node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
@@ -633,6 +798,7 @@ namespace cplab_ir_generator
 
     // 获取一个算术表达式应该是什么数据类型的函数,我们的做法是递归下降
     // 算术表达式类型节点包括expression additive_expression multiplicative_expression unary_expression primary_expression
+    // 对于数组类型来说,我们获取其基本类型
     std::string get_arithmetic_expression_type(ast_node &node)
     {
         // 遍历当前表达式的子节点
