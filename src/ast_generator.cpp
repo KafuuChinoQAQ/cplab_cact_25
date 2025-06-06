@@ -3,7 +3,7 @@
 namespace cplab_ast_generator 
 {
     // AST生成器函数 返回AST根节点
-    int ast_node_index = 0; // 全局变量，用于跟踪AST节点索引
+    int ast_node_index = 1; // 全局变量，用于跟踪AST节点索引
     ast_node ast_generator(antlr4::tree::ParseTree *tree, antlr4::Parser *parser)
     {
         ast_node node; // 创建AST节点
@@ -47,7 +47,7 @@ namespace cplab_ast_generator
     void ast_printer(const ast_node& node, std::ostream &out)
     {
         // 打印当前节点
-        out << node.node_index << ". " << node.name << std::endl; // 打印节点索引和名称
+        out << "node." << node.node_index << " " << node.name << std::endl; // 打印节点索引和名称
         if (!node.cact_code.empty()) {
             out << "cact_code: " << node.cact_code << std::endl; // 打印cact源码
         }

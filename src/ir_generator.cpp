@@ -436,15 +436,13 @@ namespace cplab_ir_generator
     // 每一个表达式类节点用于暂存结果的寄存器名称应当为"%node_index"
     // 这里因为比较繁琐,就不检查传入的节点类型是否正确了
     // 这个函数应当从expression或condition节点开始递归,当从expression开始时,type可能是int float char,当从condition开始时,type可能是bool
+    // 但凡事也有例外(悲)
     std::string calculate_expression_value(ast_node &node, std::string type)
     {
         auto [reg_type, reg_align] = get_reg_type_and_align(type);
-        printf("Calculating for node %d.%s of type %s\n", node.node_index, node.name.c_str(), type.c_str());
-        printf("reg_type: %s, reg_align: %s\n", reg_type.c_str(), reg_align.c_str());
         std::string ir_code = ""; // 用于存储当前节点的IR代码
         if(node.name == "expression")
         {
-
             // 根据推导式 expression: additive_expression; 知,expression节点的子节点只有一个,即additive_expression
             ir_code = exp_gen_ir_code_from_only_child(node, type); // 生成只有一个子节点的exp节点的IR代码并将其返回
             node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
@@ -463,7 +461,7 @@ namespace cplab_ir_generator
             // 如果子节点只有logical_and_expression,则直接重用子节点的ir_code
             if(node.children.size() == 1 && node.children[0]->name == "logical_and_expression")
             {
-                ir_code = calculate_expression_value(*node.children[0], type); // 直接重用子节点的ir_code
+                ir_code = exp_gen_ir_code_from_only_child(node, type); // 直接重用子节点的ir_code
                 node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
                 return ir_code; // 返回当前节点的IR代码
             }
@@ -495,7 +493,7 @@ namespace cplab_ir_generator
             // 如果子节点只有equal_expression,则直接重用子节点的ir_code
             if(node.children.size() == 1 && node.children[0]->name == "equal_expression")
             {
-                ir_code = calculate_expression_value(*node.children[0], type); // 直接重用子节点的ir_code
+                ir_code = exp_gen_ir_code_from_only_child(node, type); // 直接重用子节点的ir_code
                 node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
                 return ir_code; // 返回当前节点的IR代码
             }
@@ -527,30 +525,62 @@ namespace cplab_ir_generator
             // 如果子节点只有relational_expression,则直接重用子节点的ir_code
             if(node.children.size() == 1 && node.children[0]->name == "relational_expression")
             {
-                ir_code = calculate_expression_value(*node.children[0], type); // 直接重用子节点的ir_code
+                ir_code = exp_gen_ir_code_from_only_child(node, type); // 直接重用子节点的ir_code
                 node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
                 return ir_code; // 返回当前节点的IR代码
             }
             // 否则,说明该节点有三个子节点,即 equal_expression (LogicalEqual | NotEqual) relational_expression
+            // 此时,左右两个逻辑表达式都被直接看做算术表达式,因此传入的type应当是int float char之一
             else
             {
+                // 首先检查左右两个关系表达式的类型
+                std::string child_type_l = get_arithmetic_expression_type(*node.children[0]); // 获取左侧子节点的类型
+                std::string child_type_r = get_arithmetic_expression_type(*node.children[2]); // 获取右侧子节点的类型
+                if(child_type_l != child_type_r) // 如果左右子节点的类型不一致,则报错
+                {
+                    throw std::runtime_error("Type mismatch in equal_expression: " + child_type_l + " vs " + child_type_r);
+                }
                 // 分别计算前后两个关系表达式的值
-                std::string left_ir_code = calculate_expression_value(*node.children[0], type); // 计算左侧关系表达式的值
-                std::string right_ir_code = calculate_expression_value(*node.children[2], type); // 计算右侧关系表达式的值
+                std::string left_ir_code = calculate_expression_value(*node.children[0], child_type_l); // 计算左侧关系表达式的值
+                std::string right_ir_code = calculate_expression_value(*node.children[2], child_type_r); // 计算右侧关系表达式的值
                 // 生成临时寄存器名称
                 std::string left_reg_name = "%" + std::to_string(node.children[0]->node_index); // 左侧子节点的临时寄存器名称
                 std::string right_reg_name = "%" + std::to_string(node.children[2]->node_index); // 右侧子节点的临时寄存器名称
                 std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
                 std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
-                // 将两个子节点临时寄存器的值进行逻辑运算后赋值给当前节点的临时寄存器 对于equal_expression节点来说,子节点临时寄存器都应该是指向i1的指针类
-                std::string left_load = tmp_reg_name + "_l = load i1, ptr " + left_reg_name + ", align 1\n";
-                std::string right_load = tmp_reg_name + "_r = load i1, ptr " + right_reg_name + ", align 1\n";
-                // 根据操作符生成对应的比较指令
-                // 我们需要先判断推导出的relational_expression的数据类型,然后根据操作符生成对应的比较指令. 例如当数据类型为int时,我们需要生成i32类型的比较指令
+                // 根据操作符和左右子节点的数据类型生成对应的比较指令. 例如当数据类型为int时,我们需要生成i32类型的比较指令
                 std::string cmp_inst;
-                if(node.children[1]->name == "LogicalEqual") 
+                std::string op = node.children[1]->cact_code; // 获取操作符
+                auto [reg_type, reg_align] = get_reg_type_and_align(child_type_l); // 获取寄存器类型和对齐方式
+                if(op == "==") // 如果是等于操作符
                 {
-                    //tbd
+                    cmp_inst = tmp_reg_name + "_cmp = icmp eq " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成等于比较指令
+                }
+                else if(op == "!=") // 如果是不等于操作符
+                {
+                    cmp_inst = tmp_reg_name + "_cmp = icmp ne " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成不等于比较指令
+                }
+                else
+                {
+                    throw std::runtime_error("Unsupported operator in equal_expression: " + op);
+                }
+                // 将两个子节点临时寄存器的值进行逻辑运算后赋值给当前节点的临时寄存器 对于equal_expression节点来说,子节点临时寄存器指向的数据类型由child_type决定
+                std::string left_load;
+                std::string right_load;
+                if(child_type_l == "int") // 如果是整数类型
+                {
+                    left_load = tmp_reg_name + "_l = load i32, ptr " + left_reg_name + reg_align + "\n"; // 从左侧子节点的寄存器加载值到临时寄存器
+                    right_load = tmp_reg_name + "_r = load i32, ptr " + right_reg_name + reg_align + "\n"; // 从右侧子节点的寄存器加载值到临时寄存器
+                }
+                else if(child_type_l == "float") // 如果是浮点数类型
+                {
+                    left_load = tmp_reg_name + "_l = load float, ptr " + left_reg_name + reg_align + "\n"; // 从左侧子节点的寄存器加载值到临时寄存器
+                    right_load = tmp_reg_name + "_r = load float, ptr " + right_reg_name + reg_align + "\n"; // 从右侧子节点的寄存器加载值到临时寄存器
+                }
+                else if(child_type_l == "char") // 如果是字符类型
+                {
+                    left_load = tmp_reg_name + "_l = load i8, ptr " + left_reg_name + reg_align + "\n"; // 从左侧子节点的寄存器加载值到临时寄存器
+                    right_load = tmp_reg_name + "_r = load i8, ptr " + right_reg_name + reg_align + "\n"; // 从右侧子节点的寄存器加载值到临时寄存器
                 }
                 std::string store_inst = "store i1 " + tmp_reg_name + "_cmp, ptr " + current_reg_name + ", align 1\n"; // 将比较结果存储到当前节点的寄存器
                 ir_code = left_ir_code + right_ir_code + left_load + right_load + cmp_inst + store_inst; // 拼接IR代码
@@ -599,5 +629,89 @@ namespace cplab_ir_generator
         } else {
             throw std::runtime_error("Unsupported type: " + type);
         }
+    }
+
+    // 获取一个算术表达式应该是什么数据类型的函数,我们的做法是递归下降
+    // 算术表达式类型节点包括expression additive_expression multiplicative_expression unary_expression primary_expression
+    std::string get_arithmetic_expression_type(ast_node &node)
+    {
+        // 遍历当前表达式的子节点
+        for(auto &child : node.children)
+        {
+            if( child->name == "expression" ||
+                child->name == "additive_expression" ||
+                child->name == "multiplicative_expression" ||
+                child->name == "unary_expression" ||
+                child->name == "primary_expression"||  //如果子节点也是算术表达式,那么递归调用函数
+                child->name == "number" ||
+                child->name == "left_value") //如果子节点是number或left_value,再递归一次,其第一个子节点的类型就是我们要找的
+            {
+                return get_arithmetic_expression_type(*child);
+            }
+            else if(child->name == "IntegerConstant")
+            {
+                return "int"; // 如果子节点是整数常量,则返回int类型
+            }
+            else if(child->name == "FloatConstant")
+            {
+                return "float"; // 如果子节点是浮点数常量,则返回float类型
+            }
+            else if(child->name == "CharConstant")
+            {
+                return "char"; // 如果子节点是字符常量,则返回char类型
+            }
+            else if(child->name == "Identifier")
+            {
+                // 如果子节点是标识符,则需要查找该标识符的类型
+                identifier* id = find_identifier_in_scope(*child, child->cact_code); // 查找标识符
+                if(id != nullptr) // 如果找到了标识符
+                {
+                    if(id->type == "int" || id->type == "float" || id->type == "char") // 如果是基本类型则直接返回
+                    {
+                        return id->type;
+                    }
+                    else // 如果是数组类型,则返回其基本类型
+                    {
+                        return id->type.substr(0, id->type.find('['));
+                    }
+                }
+                else // 如果没有找到标识符,则报错
+                {
+                    throw std::runtime_error("Identifier not found: " + child->cact_code);
+                }
+            }
+            else if(node.name == "equal_expression" &&
+                    node.children.size() == 1 && 
+                    node.children[0]->name == "relational_expression" &&
+                    node.children[0]->children.size() == 1 &&
+                    node.children[0]->children[0]->name == "additive_expression"
+                    ) //特别地,对于equal->relational->additive这种情况,我们将这个equal逻辑表达式看做算术表达式
+            {
+                return get_arithmetic_expression_type(*node.children[0]->children[0]); // 递归调用,获取additive_expression的类型
+            }
+            //剩余情况为需要跳过的字符,如'('节点
+        }
+        // 如果没有找到任何符合条件的子节点,则报错
+        throw std::runtime_error("No valid arithmetic expression found in node: " + node.name);
+    }
+
+    // 传入一个ast_node节点和一个标识符名称,在节点所在的作用域中查找并返回标识符指针的函数
+    // 如果未找到，则回到父作用域寻找,直至全局作用域,依旧未找到则报错
+    identifier* find_identifier_in_scope(ast_node &node, std::string id_name)
+    {
+        scope_node* current_scope = node.scope_ptr; // 获取当前作用域指针
+        while(current_scope != nullptr) // 如果当前作用域不为空
+        {
+            // 在当前作用域中查找标识符
+            for(auto &id : current_scope->identifiers) // 遍历当前作用域中的所有标识符
+            {
+                if(id.name == id_name) // 如果找到了匹配的标识符
+                {
+                    return &id; // 返回该标识符的指针
+                }
+            }
+            current_scope = current_scope->parent; // 否则回到父作用域继续查找
+        }
+
     }
 }

@@ -19,5 +19,9 @@ namespace cplab_ir_generator
     std::string exp_gen_ir_code_from_only_child(ast_node &node, std::string type);
     // 获取寄存器类型和对齐方式的函数
     std::pair<std::string, std::string> get_reg_type_and_align(const std::string& type);
+    // 获取一个算术表达式应该是什么数据类型的函数,由于我们仅允许相同类型的数据进行算术运算,只需要遍历到第一个终结符节点即可
+    std::string get_arithmetic_expression_type(ast_node &node);
+    // 传入一个ast_node节点和一个标识符名称,递归向上查找并返回标识符指针的函数
+    identifier* find_identifier_in_scope(ast_node &node, std::string id_name);
 }
 #endif // CPLAB_IR_GENERATOR_H
