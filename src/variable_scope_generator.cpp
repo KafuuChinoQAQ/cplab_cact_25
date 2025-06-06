@@ -1,4 +1,4 @@
-// 本文件中代码用于生成AST对应的各标识符定义域
+// 本文件中代码用于生成A,T对应的各标识符定义域
 #include "variable_scope_generator.h"
 namespace cplab_variable_scope_generator 
 {
@@ -51,6 +51,22 @@ namespace cplab_variable_scope_generator
             current_scope = &current_scope->children.back(); // 将当前作用域指向vector中的副本
             // 将当前AST节点的作用域设置为当前作用域
             node.scope_ptr = current_scope;
+
+            // 新添加内容 如果block节点的父节点是一个函数定义节点,则将函数参数添加到当前作用域的标识符列表中
+            if (node.parent && node.parent->name == "function_definition") {
+                // 获取函数定义节点的标识符
+                identifier func_id;
+                for(const auto &id : current_scope->parent->identifiers) {
+                    if (id.line_number == node.parent->node_index) { // 通过行号匹配标识符
+                        func_id = id; // 找到函数标识符
+                        break;
+                    }
+                }
+                // 将函数参数添加到当前作用域的标识符列表中
+                for (const auto &param : func_id.func_params) {
+                    current_scope->identifiers.push_back(param);
+                }
+            }
             // 递归处理子节点
             for (auto &child : node.children) {
                 process_ast_node(*child,current_scope);
@@ -132,7 +148,9 @@ namespace cplab_variable_scope_generator
                 if (param_node->name == "function_formal_param")
                 {
                     identifier param_id;
+                    param_id.id_index = id_index++; // 为参数分配唯一的id_index
                     param_id.kind = IdKind::Param; // 标识符是一个函数参数
+                    param_id.line_number = param_node->node_index; // 设置参数所在的行号,用于错误提示和静态检查
                     param_id.name = param_node->children[1]->cact_code; // 获取参数名称,源自第二个子节点Identifier
                     param_id.func_return_type = ""; // func_return_type字段不使用
                     param_id.func_params.clear(); // 清空函数参数列表
