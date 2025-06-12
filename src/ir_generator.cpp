@@ -86,7 +86,7 @@ namespace cplab_ir_generator
                     {
                         current_id = &id; // 找到对应的标识符
                         // 找到对应的标识符,生成ir_code的第一部分
-                        ir_code_1 = "%" + std::to_string(id.id_index) + " = alloca ";
+                        ir_code_1 = "%id_" + std::to_string(id.id_index) + " = alloca ";
                         if (id.type == "int")
                         {
                             ir_code_1 += "i32, align 4\n"; // 分配一个整型变量
@@ -114,7 +114,7 @@ namespace cplab_ir_generator
                     if(current_id->type == "int")
                     {
                         int init_value = std::get<int>(calculate_constant_expression_value(*node.children.back()->children.back(), current_id->type)); // 计算初始化值
-                        ir_code_2 = "store i32 " + std::to_string(init_value) + ", ptr %" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为init_value
+                        ir_code_2 = "store i32 " + std::to_string(init_value) + ", ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为init_value
                         if(current_id->kind == IdKind::Const) // 对于常量,我们同时修改identifier的const_value字段,以便后续使用
                         {
                             current_id->const_value = init_value;
@@ -123,7 +123,7 @@ namespace cplab_ir_generator
                     else if(current_id->type == "float")
                     {
                         float init_value = std::get<float>(calculate_constant_expression_value(*node.children.back()->children.back(), current_id->type)); // 计算初始化值
-                        ir_code_2 = "store float " + std::to_string(init_value) + ", ptr %" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为init_value
+                        ir_code_2 = "store float " + std::to_string(init_value) + ", ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为init_value
                         if(current_id->kind == IdKind::Const)
                         {
                             current_id->const_value = init_value;
@@ -133,7 +133,7 @@ namespace cplab_ir_generator
                     {
                         char init_value = std::get<char>(calculate_constant_expression_value(*node.children.back()->children.back(), current_id->type)); // 计算初始化值
                         // 注意:这里的char类型在LLVM中是i8类型,需要转换为整数
-                        ir_code_2 = "store i8 " + std::to_string(static_cast<int>(init_value)) + ", ptr %" + std::to_string(current_id->id_index) + ", align 1\n"; // 初始化为init_value
+                        ir_code_2 = "store i8 " + std::to_string(static_cast<int>(init_value)) + ", ptr %id_" + std::to_string(current_id->id_index) + ", align 1\n"; // 初始化为init_value
                         if(current_id->kind == IdKind::Const)
                         {
                             current_id->const_value = init_value;
@@ -174,11 +174,11 @@ namespace cplab_ir_generator
                                 }
                                 else if(base_type == "float")
                                 {
-                                    std::get<std::vector<float>>(init_values).push_back(std::get<int>(calculate_constant_expression_value(*n,base_type))); // 将值存入float类型的vector
+                                    std::get<std::vector<float>>(init_values).push_back(std::get<float>(calculate_constant_expression_value(*n,base_type))); // 将值存入float类型的vector
                                 }
                                 else if(base_type == "char")
                                 {
-                                    std::get<std::vector<char>>(init_values).push_back(std::get<int>(calculate_constant_expression_value(*n,base_type))); // 将值存入char类型的vector
+                                    std::get<std::vector<char>>(init_values).push_back(std::get<char>(calculate_constant_expression_value(*n,base_type))); // 将值存入char类型的vector
                                 }
                             }
                             for(auto &child : n->children) // 遍历子节点
@@ -196,7 +196,7 @@ namespace cplab_ir_generator
                                 // %tmp = getelementptr <array_type>, ptr %id, i32 0, i32 i
                                 std::string gep = "%tmp" + std::to_string(current_id->id_index) + "_" + std::to_string(i) +
                                     " = getelementptr inbounds " + to_llvm_array_type(current_id->type).substr(0, to_llvm_array_type(current_id->type).find(',')) +
-                                    ", ptr %" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
+                                    ", ptr %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
                                 std::string store = "store i32 " + std::to_string(vec[i]) + ", ptr %tmp" +
                                     std::to_string(current_id->id_index) + "_" + std::to_string(i) + ", align 4\n";
                                 ir_code_2 += gep + store;
@@ -210,7 +210,7 @@ namespace cplab_ir_generator
                                 // %tmp = getelementptr <array_type>, ptr %id, i32 0, i32 i
                                 std::string gep = "%tmp" + std::to_string(current_id->id_index) + "_" + std::to_string(i) +
                                     " = getelementptr inbounds " + to_llvm_array_type(current_id->type).substr(0, to_llvm_array_type(current_id->type).find(',')) +
-                                    ", ptr %" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
+                                    ", ptr %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
                                 std::string store = "store float " + std::to_string(vec[i]) + ", ptr %tmp" +
                                     std::to_string(current_id->id_index) + "_" + std::to_string(i) + ", align 4\n";
                                 ir_code_2 += gep + store;
@@ -224,7 +224,7 @@ namespace cplab_ir_generator
                                 // %tmp = getelementptr <array_type>, ptr %id, i32 0, i32 i
                                 std::string gep = "%tmp" + std::to_string(current_id->id_index) + "_" + std::to_string(i) +
                                     " = getelementptr inbounds " + to_llvm_array_type(current_id->type).substr(0, to_llvm_array_type(current_id->type).find(',')) +
-                                    ", ptr %" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
+                                    ", ptr %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
                                 std::string store = "store i8 " + std::to_string(static_cast<int>(vec[i])) + ", ptr %tmp" +
                                     std::to_string(current_id->id_index) + "_" + std::to_string(i) + ", align 1\n";
                                 ir_code_2 += gep + store;
@@ -252,7 +252,7 @@ namespace cplab_ir_generator
                     // 否则进行隐式初始化
                     if(current_id->type == "int")
                     {
-                        ir_code_2 = "store i32 0, ptr %" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为0
+                        ir_code_2 = "store i32 0, ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为0
                         if(current_id->kind == IdKind::Const) // 对于常量,我们同时修改identifier的const_value字段,以便后续使用
                         {
                             current_id->const_value = 0;
@@ -260,7 +260,7 @@ namespace cplab_ir_generator
                     }
                     else if(current_id->type == "float")
                     {
-                        ir_code_2 = "store float 0.0, ptr %" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为0.0
+                        ir_code_2 = "store float 0.0, ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为0.0
                         if(current_id->kind == IdKind::Const)
                         {
                             current_id->const_value = 0.0f;
@@ -268,7 +268,7 @@ namespace cplab_ir_generator
                     }
                     else if(current_id->type == "char")
                     {
-                        ir_code_2 = "store i8 0, ptr %" + std::to_string(current_id->id_index) + ", align 1\n"; // 初始化为'\0'
+                        ir_code_2 = "store i8 0, ptr %id_" + std::to_string(current_id->id_index) + ", align 1\n"; // 初始化为'\0'
                         if(current_id->kind == IdKind::Const)
                         {
                             current_id->const_value = '\0';
