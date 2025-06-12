@@ -7,10 +7,8 @@ namespace cplab_ir_generator
     // 总入口
     void ir_generator(ast_node &node)
     {
-        printf("Generating IR code for AST nodes...\n");
         // 先生成declaration相关结点的IR代码
         ir_gen_declaration(node);
-        printf("IR code for declaration nodes generated.\n");
         // 然后遍历所有节点,依次生成所有expression和condition结点的IR代码
         for (auto &child : node.children)
         {
@@ -73,8 +71,6 @@ namespace cplab_ir_generator
         else if(node.name == "variable_definition" || node.name == "constant_definition")
         {
             identifier* current_id; // 用于存储当前变量或常量定义对应的作用域树结点
-            std::string ir_code_1=""; // 用于存储IR代码的第一部分 即声明部分
-            std::string ir_code_2=""; // 用于存储IR代码的第二部分 即初始化部分
             // 对于变量或常量定义结点,直接生成其ir_code
             // 先查阅当前作用域,找到该变量或常量的标识符信息
             if (node.scope_ptr != nullptr)
@@ -85,65 +81,251 @@ namespace cplab_ir_generator
                     if (id.line_number == node.node_index) // 通过行号匹配标识符
                     {
                         current_id = &id; // 找到对应的标识符
-                        // 找到对应的标识符,生成ir_code的第一部分
-                        ir_code_1 = "%id_" + std::to_string(id.id_index) + " = alloca ";
-                        if (id.type == "int")
-                        {
-                            ir_code_1 += "i32, align 4\n"; // 分配一个整型变量
-                        }
-                        else if(id.type == "float")
-                        {
-                            ir_code_1 += "float, align 4\n"; // 分配一个浮点型变量
-                        }
-                        else if(id.type == "char")
-                        {
-                            ir_code_1 += "i8, align 1\n"; // 分配一个字符型变量
-                        }
-                        else //数组类型
-                        {
-                            ir_code_1 += to_llvm_array_type(id.type); // 分配一个数组变量
-                        }
                         break; // 找到后跳出循环
                     }
                 }
-                // 首先检查是否有初始化值,如果最后一个子节点不是constant_initial_value,则说明该变量没有初始化值,但常量一定有
-                if (node.children.size() > 0 && node.children.back()->name == "constant_initial_value")
+                // 如果id位于非全局作用域中 则定义一个局部变量
+                if(node.scope_ptr->name != "global")
                 {
-                    // 如果有显式初始化,则计算初始化表达式值,然后将该值赋给id
-                    // 根据助教的说法,此处的常量表达式只会是立即数,不需要递归计算表达式的值
-                    if(current_id->type == "int")
+                    std::string ir_code_1=""; // 用于存储IR代码的第一部分 即声明部分
+                    std::string ir_code_2=""; // 用于存储IR代码的第二部分 即初始化部分
+                    // 找到对应的标识符,生成ir_code的第一部分
+                    ir_code_1 = "%id_" + std::to_string(current_id->id_index) + " = alloca ";
+                    if (current_id->type == "int")
                     {
-                        int init_value = std::get<int>(calculate_constant_expression_value(*node.children.back()->children.back(), current_id->type)); // 计算初始化值
-                        ir_code_2 = "store i32 " + std::to_string(init_value) + ", ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为init_value
-                        if(current_id->kind == IdKind::Const) // 对于常量,我们同时修改identifier的const_value字段,以便后续使用
+                        ir_code_1 += "i32, align 4\n"; // 分配一个整型变量
+                    }
+                    else if(current_id->type == "float")
+                    {
+                        ir_code_1 += "float, align 4\n"; // 分配一个浮点型变量
+                    }
+                    else if(current_id->type == "char")
+                    {
+                        ir_code_1 += "i8, align 1\n"; // 分配一个字符型变量
+                    }
+                    else //数组类型
+                    {
+                        ir_code_1 += to_llvm_array_type(current_id->type); // 分配一个数组变量
+                    }
+                    // 首先检查是否有初始化值,如果最后一个子节点不是constant_initial_value,则说明该变量没有初始化值,但常量一定有
+                    if (node.children.size() > 0 && node.children.back()->name == "constant_initial_value")
+                    {
+                        // 如果有显式初始化,则计算初始化表达式值,然后将该值赋给id
+                        // 根据助教的说法,此处的常量表达式只会是立即数,不需要递归计算表达式的值
+                        if(current_id->type == "int")
                         {
-                            current_id->const_value = init_value;
+                            int init_value = std::get<int>(calculate_constant_expression_value(*node.children.back()->children.back(), current_id->type)); // 计算初始化值
+                            ir_code_2 = "store i32 " + std::to_string(init_value) + ", ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为init_value
+                            if(current_id->kind == IdKind::Const) // 对于常量,我们同时修改identifier的const_value字段,以便后续使用
+                            {
+                                current_id->const_value = init_value;
+                            }
+                        }
+                        else if(current_id->type == "float")
+                        {
+                            float init_value = std::get<float>(calculate_constant_expression_value(*node.children.back()->children.back(), current_id->type)); // 计算初始化值
+                            ir_code_2 = "store float " + std::to_string(init_value) + ", ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为init_value
+                            if(current_id->kind == IdKind::Const)
+                            {
+                                current_id->const_value = init_value;
+                            }
+                        }
+                        else if(current_id->type == "char")
+                        {
+                            char init_value = std::get<char>(calculate_constant_expression_value(*node.children.back()->children.back(), current_id->type)); // 计算初始化值
+                            // 注意:这里的char类型在LLVM中是i8类型,需要转换为整数
+                            ir_code_2 = "store i8 " + std::to_string(static_cast<int>(init_value)) + ", ptr %id_" + std::to_string(current_id->id_index) + ", align 1\n"; // 初始化为init_value
+                            if(current_id->kind == IdKind::Const)
+                            {
+                                current_id->const_value = init_value;
+                            }
+                        }
+                        else //对于数组类型,其初始化比较复杂
+                        {
+                            //我们考虑将高维数组摊平为一维数组来做
+                            //例如,对于int a[2][2] = {{1,3},{5,7}},我们实际上只需要将1 3 5 7按顺序存进内存即可
+                            //首先将数组中所有元素的初始值存储在一个vector中
+                            std::variant<std::vector<int>, std::vector<float>, std::vector<char>> init_values; // 用于存储初始化值
+                            //解析id.type,获取数组的基本类型,并对init_values进行初始化
+                            std::string base_type = current_id->type.substr(0, current_id->type.find('['));
+                            if(base_type == "int")
+                            {
+                                init_values = std::vector<int>(); // 初始化为int类型的vector
+                            }
+                            else if(base_type == "float")
+                            {
+                                init_values = std::vector<float>(); // 初始化为float类型的vector
+                            }
+                            else if(base_type == "char")
+                            {
+                                init_values = std::vector<char>(); // 初始化为char类型的vector
+                            }
+                            else
+                            {
+                                throw std::runtime_error("Unsupported array base type: " + base_type);
+                            }
+                            ast_node* init_value_node = node.children.back().get(); // 获取初始化值子节点
+                            //按先序遍历init_value_node的子树,将所有constant_expression类型的节点的值存入init_values
+                            std::function<void(ast_node*)> traverse = [&](ast_node* n) {
+                                if(n->name == "constant_expression") // 如果是constant_expression类型的节点
+                                {
+                                    if(base_type == "int")
+                                    {
+                                        std::get<std::vector<int>>(init_values).push_back(std::get<int>(calculate_constant_expression_value(*n,base_type))); // 将值存入int类型的vector
+                                    }
+                                    else if(base_type == "float")
+                                    {
+                                        std::get<std::vector<float>>(init_values).push_back(std::get<float>(calculate_constant_expression_value(*n,base_type))); // 将值存入float类型的vector
+                                    }
+                                    else if(base_type == "char")
+                                    {
+                                        std::get<std::vector<char>>(init_values).push_back(std::get<char>(calculate_constant_expression_value(*n,base_type))); // 将值存入char类型的vector
+                                    }
+                                }
+                                for(auto &child : n->children) // 遍历子节点
+                                {
+                                    traverse(child.get()); // 递归调用
+                                }
+                            };
+                            traverse(init_value_node); // 从初始化值节点开始遍历
+                            //根据init_values的大小,生成对应数量的store指令
+                            if(base_type == "int")
+                            {
+                                auto &vec = std::get<std::vector<int>>(init_values);
+                                for(size_t i = 0; i < vec.size(); ++i)
+                                {
+                                    // %tmp = getelementptr <array_type>, ptr %id, i32 0, i32 i
+                                    std::string gep = "%tmp" + std::to_string(current_id->id_index) + "_" + std::to_string(i) +
+                                        " = getelementptr inbounds " + to_llvm_array_type(current_id->type).substr(0, to_llvm_array_type(current_id->type).find(',')) +
+                                        ", ptr %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
+                                    std::string store = "store i32 " + std::to_string(vec[i]) + ", ptr %tmp" +
+                                        std::to_string(current_id->id_index) + "_" + std::to_string(i) + ", align 4\n";
+                                    ir_code_2 += gep + store;
+                                }
+                            }
+                            else if(base_type == "float")
+                            {
+                                auto &vec = std::get<std::vector<float>>(init_values);
+                                for(size_t i = 0; i < vec.size(); ++i)
+                                {
+                                    // %tmp = getelementptr <array_type>, ptr %id, i32 0, i32 i
+                                    std::string gep = "%tmp" + std::to_string(current_id->id_index) + "_" + std::to_string(i) +
+                                        " = getelementptr inbounds " + to_llvm_array_type(current_id->type).substr(0, to_llvm_array_type(current_id->type).find(',')) +
+                                        ", ptr %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
+                                    std::string store = "store float " + std::to_string(vec[i]) + ", ptr %tmp" +
+                                        std::to_string(current_id->id_index) + "_" + std::to_string(i) + ", align 4\n";
+                                    ir_code_2 += gep + store;
+                                }
+                            }
+                            else if(base_type == "char")
+                            {
+                                auto &vec = std::get<std::vector<char>>(init_values);
+                                for(size_t i = 0; i < vec.size(); ++i)
+                                {
+                                    // %tmp = getelementptr <array_type>, ptr %id, i32 0, i32 i
+                                    std::string gep = "%tmp" + std::to_string(current_id->id_index) + "_" + std::to_string(i) +
+                                        " = getelementptr inbounds " + to_llvm_array_type(current_id->type).substr(0, to_llvm_array_type(current_id->type).find(',')) +
+                                        ", ptr %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
+                                    std::string store = "store i8 " + std::to_string(static_cast<int>(vec[i])) + ", ptr %tmp" +
+                                        std::to_string(current_id->id_index) + "_" + std::to_string(i) + ", align 1\n";
+                                    ir_code_2 += gep + store;
+                                }
+                            }
+                            if(current_id->kind == IdKind::Const) // 对于常量,我们同时修改identifier的const_value字段,以便后续使用
+                            {
+                                if(base_type == "int")
+                                {
+                                    current_id->const_value = std::get<std::vector<int>>(init_values);
+                                }
+                                else if(base_type == "float")
+                                {
+                                    current_id->const_value = std::get<std::vector<float>>(init_values);
+                                }
+                                else if(base_type == "char")
+                                {
+                                    current_id->const_value = std::get<std::vector<char>>(init_values);
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // 否则进行隐式初始化
+                        if(current_id->type == "int")
+                        {
+                            ir_code_2 = "store i32 0, ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为0
+                            if(current_id->kind == IdKind::Const) // 对于常量,我们同时修改identifier的const_value字段,以便后续使用
+                            {
+                                current_id->const_value = 0;
+                            }
+                        }
+                        else if(current_id->type == "float")
+                        {
+                            ir_code_2 = "store float 0.0, ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为0.0
+                            if(current_id->kind == IdKind::Const)
+                            {
+                                current_id->const_value = 0.0f;
+                            }
+                        }
+                        else if(current_id->type == "char")
+                        {
+                            ir_code_2 = "store i8 0, ptr %id_" + std::to_string(current_id->id_index) + ", align 1\n"; // 初始化为'\0'
+                            if(current_id->kind == IdKind::Const)
+                            {
+                                current_id->const_value = '\0';
+                            }
+                        }
+                        // 访问未初始化的数组是未定义的行为,这里我们不对其进行隐式初始化
+                    }
+                    node.ir_code = ir_code_1 + ir_code_2; // 将ir_code赋给当前节点
+                }
+                // 否则定义全局变量
+                else
+                {
+                    if (current_id->type == "int")
+                    {
+                        // 由于全局变量必须初始化,我们首先找到初始化的值
+                        int init_value = std::get<int>(calculate_constant_expression_value(*node.children.back()->children.back(), current_id->type)); // 计算初始化值
+                        // 生成全局变量的IR代码
+                        std::string ir_code = "@id_" + std::to_string(current_id->id_index) + " = global i32 " + std::to_string(init_value) + ", align 4\n";
+                        node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                        // 如果是常量,则将const_value字段也设置为初始化值
+                        if(current_id->kind == IdKind::Const) 
+                        {
+                            current_id->const_value = init_value; // 设置常量的初始值
                         }
                     }
                     else if(current_id->type == "float")
                     {
+                        // 由于全局变量必须初始化,我们首先找到初始化的值
                         float init_value = std::get<float>(calculate_constant_expression_value(*node.children.back()->children.back(), current_id->type)); // 计算初始化值
-                        ir_code_2 = "store float " + std::to_string(init_value) + ", ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为init_value
-                        if(current_id->kind == IdKind::Const)
+                        // 生成全局变量的IR代码
+                        std::string ir_code = "@id_" + std::to_string(current_id->id_index) + " = global float " + std::to_string(init_value) + ", align 4\n";
+                        node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                        // 如果是常量,则将const_value字段也设置为初始化值
+                        if(current_id->kind == IdKind::Const) 
                         {
-                            current_id->const_value = init_value;
+                            current_id->const_value = init_value; // 设置常量的初始值
                         }
                     }
                     else if(current_id->type == "char")
                     {
+                        // 由于全局变量必须初始化,我们首先找到初始化的值
                         char init_value = std::get<char>(calculate_constant_expression_value(*node.children.back()->children.back(), current_id->type)); // 计算初始化值
-                        // 注意:这里的char类型在LLVM中是i8类型,需要转换为整数
-                        ir_code_2 = "store i8 " + std::to_string(static_cast<int>(init_value)) + ", ptr %id_" + std::to_string(current_id->id_index) + ", align 1\n"; // 初始化为init_value
-                        if(current_id->kind == IdKind::Const)
+                        // 生成全局变量的IR代码
+                        std::string ir_code = "@id_" + std::to_string(current_id->id_index) + " = global i8 " + std::to_string(static_cast<int>(init_value)) + ", align 1\n";
+                        node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                        // 如果是常量,则将const_value字段也设置为初始化值
+                        if(current_id->kind == IdKind::Const) 
                         {
-                            current_id->const_value = init_value;
+                            current_id->const_value = init_value; // 设置常量的初始值
                         }
                     }
-                    else //对于数组类型,其初始化比较复杂
+                    else // 数组类型
                     {
-                        //我们考虑将高维数组摊平为一维数组来做
-                        //例如,对于int a[2][2] = {{1,3},{5,7}},我们实际上只需要将1 3 5 7按顺序存进内存即可
-                        //首先将数组中所有元素的初始值存储在一个vector中
+                        // 对于数组类型,我们需要将其初始化为一个全局数组 对于多维数组,我们将其展开来做初始化
+                        // 例如对于float c[2][2] = {{1.1,2.2},{3.3,4.4}};
+                        // 我们将其初始化为@c = global [4 x float] [float 1.1, float 2.2, float 3.3, float 4.4], align 16
                         std::variant<std::vector<int>, std::vector<float>, std::vector<char>> init_values; // 用于存储初始化值
                         //解析id.type,获取数组的基本类型,并对init_values进行初始化
                         std::string base_type = current_id->type.substr(0, current_id->type.find('['));
@@ -187,48 +369,56 @@ namespace cplab_ir_generator
                             }
                         };
                         traverse(init_value_node); // 从初始化值节点开始遍历
-                        //根据init_values的大小,生成对应数量的store指令
+                        //将init_values中的值转换为LLVM全局数组的初始化格式
+                        std::string ir_code_1="";
+                        std::string ir_code_2="";
                         if(base_type == "int")
                         {
-                            auto &vec = std::get<std::vector<int>>(init_values);
-                            for(size_t i = 0; i < vec.size(); ++i)
+                            ir_code_1 = "@id_" + std::to_string(current_id->id_index) + " = global [" + std::to_string(std::get<std::vector<int>>(init_values).size()) + " x i32] ";
+                            // 遍历init_values中的值,生成初始化数组的IR代码
+                            ir_code_2 = "[";
+                            for(size_t i = 0; i < std::get<std::vector<int>>(init_values).size(); ++i)
                             {
-                                // %tmp = getelementptr <array_type>, ptr %id, i32 0, i32 i
-                                std::string gep = "%tmp" + std::to_string(current_id->id_index) + "_" + std::to_string(i) +
-                                    " = getelementptr inbounds " + to_llvm_array_type(current_id->type).substr(0, to_llvm_array_type(current_id->type).find(',')) +
-                                    ", ptr %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
-                                std::string store = "store i32 " + std::to_string(vec[i]) + ", ptr %tmp" +
-                                    std::to_string(current_id->id_index) + "_" + std::to_string(i) + ", align 4\n";
-                                ir_code_2 += gep + store;
+                                ir_code_2 += "i32 " + std::to_string(std::get<std::vector<int>>(init_values)[i]);
+                                if(i < std::get<std::vector<int>>(init_values).size() - 1)
+                                {
+                                    ir_code_2 += ", ";
+                                }
                             }
+                            ir_code_2 += "], align 16\n"; // 添加右方括号和对齐信息
+                            node.ir_code = ir_code_1 + ir_code_2; // 将生成的IR代码赋给当前节点
                         }
                         else if(base_type == "float")
                         {
-                            auto &vec = std::get<std::vector<float>>(init_values);
-                            for(size_t i = 0; i < vec.size(); ++i)
+                            ir_code_1 = "@id_" + std::to_string(current_id->id_index) + " = global [" + std::to_string(std::get<std::vector<float>>(init_values).size()) + " x float] ";
+                            // 遍历init_values中的值,生成初始化数组的IR代码
+                            ir_code_2 = "[";
+                            for(size_t i = 0; i < std::get<std::vector<float>>(init_values).size(); ++i)
                             {
-                                // %tmp = getelementptr <array_type>, ptr %id, i32 0, i32 i
-                                std::string gep = "%tmp" + std::to_string(current_id->id_index) + "_" + std::to_string(i) +
-                                    " = getelementptr inbounds " + to_llvm_array_type(current_id->type).substr(0, to_llvm_array_type(current_id->type).find(',')) +
-                                    ", ptr %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
-                                std::string store = "store float " + std::to_string(vec[i]) + ", ptr %tmp" +
-                                    std::to_string(current_id->id_index) + "_" + std::to_string(i) + ", align 4\n";
-                                ir_code_2 += gep + store;
+                                ir_code_2 += "float " + std::to_string(std::get<std::vector<float>>(init_values)[i]);
+                                if(i < std::get<std::vector<float>>(init_values).size() - 1)
+                                {
+                                    ir_code_2 += ", ";
+                                }
                             }
+                            ir_code_2 += "], align 16\n"; // 添加右方括号和对齐信息
+                            node.ir_code = ir_code_1 + ir_code_2; // 将生成的IR代码赋给当前节点
                         }
                         else if(base_type == "char")
                         {
-                            auto &vec = std::get<std::vector<char>>(init_values);
-                            for(size_t i = 0; i < vec.size(); ++i)
+                            ir_code_1 = "@id_" + std::to_string(current_id->id_index) + " = global [" + std::to_string(std::get<std::vector<char>>(init_values).size()) + " x i8] ";
+                            // 遍历init_values中的值,生成初始化数组的IR代码
+                            ir_code_2 = "[";
+                            for(size_t i = 0; i < std::get<std::vector<char>>(init_values).size(); ++i)
                             {
-                                // %tmp = getelementptr <array_type>, ptr %id, i32 0, i32 i
-                                std::string gep = "%tmp" + std::to_string(current_id->id_index) + "_" + std::to_string(i) +
-                                    " = getelementptr inbounds " + to_llvm_array_type(current_id->type).substr(0, to_llvm_array_type(current_id->type).find(',')) +
-                                    ", ptr %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
-                                std::string store = "store i8 " + std::to_string(static_cast<int>(vec[i])) + ", ptr %tmp" +
-                                    std::to_string(current_id->id_index) + "_" + std::to_string(i) + ", align 1\n";
-                                ir_code_2 += gep + store;
+                                ir_code_2 += "i8 " + std::to_string(static_cast<int>(std::get<std::vector<char>>(init_values)[i]));
+                                if(i < std::get<std::vector<char>>(init_values).size() - 1)
+                                {
+                                    ir_code_2 += ", ";
+                                }
                             }
+                            ir_code_2 += "], align 16\n"; // 添加右方括号和对齐信息
+                            node.ir_code = ir_code_1 + ir_code_2; // 将生成的IR代码赋给当前节点
                         }
                         if(current_id->kind == IdKind::Const) // 对于常量,我们同时修改identifier的const_value字段,以便后续使用
                         {
@@ -247,36 +437,6 @@ namespace cplab_ir_generator
                         }
                     }
                 }
-                else
-                {
-                    // 否则进行隐式初始化
-                    if(current_id->type == "int")
-                    {
-                        ir_code_2 = "store i32 0, ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为0
-                        if(current_id->kind == IdKind::Const) // 对于常量,我们同时修改identifier的const_value字段,以便后续使用
-                        {
-                            current_id->const_value = 0;
-                        }
-                    }
-                    else if(current_id->type == "float")
-                    {
-                        ir_code_2 = "store float 0.0, ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为0.0
-                        if(current_id->kind == IdKind::Const)
-                        {
-                            current_id->const_value = 0.0f;
-                        }
-                    }
-                    else if(current_id->type == "char")
-                    {
-                        ir_code_2 = "store i8 0, ptr %id_" + std::to_string(current_id->id_index) + ", align 1\n"; // 初始化为'\0'
-                        if(current_id->kind == IdKind::Const)
-                        {
-                            current_id->const_value = '\0';
-                        }
-                    }
-                    // 访问未初始化的数组是未定义的行为,这里我们不对其进行隐式初始化
-                }
-                node.ir_code = ir_code_1 + ir_code_2; // 将ir_code赋给当前节点
             }
             else
             {
@@ -1144,6 +1304,36 @@ namespace cplab_ir_generator
         {
             // left_value的生成式是 left_value: Identifier (LeftBracket expression RightBracket)*;
             // 我们分别考虑id是不是数组的两种情况
+            if(node.children.size() == 1 && node.children[0]->name == "Identifier")
+            {
+                // 如果只有一个子节点,则说明是标识符,根据当前type将标识符临时寄存器的值赋给当前节点的临时寄存器
+                // 先找到对应identifier的寄存器名称
+                identifier* id = find_identifier_in_scope(*node.children[0], node.children[0]->cact_code); // 查找标识符节点
+                // 注意 当前节点临时寄存器是一个指针 但标识符临时寄存器里面存放的是立即数
+                std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的寄存器名称
+                std::string tmp_reg_name = "%tmp_" + std::to_string(node.node_index); // 临时寄存器名称
+                // 从标识符的寄存器加载值到临时寄存器
+                std::string assign_ir_code = tmp_reg_name + " = load " + reg_type + ", ptr %id_" + std::to_string(id->id_index) + reg_align + "\n"; // 从标识符的寄存器加载值到临时寄存器
+                // 将临时寄存器的值存储到当前节点的寄存器
+                std::string store_ir_code = "store " + reg_type + " " + tmp_reg_name + ", ptr " + current_reg_name + reg_align + "\n"; // 将临时寄存器的值存储到当前节点的寄存器
+                node.ir_code = assign_ir_code + store_ir_code; // 拼接IR代码
+                return node.ir_code; // 返回当前节点的IR代码
+            }
+            else if(node.children.size() > 1)
+            {
+                // 如果有多个子节点,说明是数组访问
+                // 首先获取left_value节点的cact_code 并从中分离出数组名和索引
+                std::string array_name = node.children[0]->cact_code; // 数组名 如"array"
+                // 将cact_code减去开头的标识符部分得到剩余的索引部分 如"[2][3]""
+                std::string index = node.cact_code.substr(array_name.length());
+                printf("array_name: %s, index: %s\n", array_name.c_str(), index.c_str()); // 调试输出
+                return "";
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported left_value structure");
+            }
+            return "";
         }
         else
         {
