@@ -1,21 +1,29 @@
 #include "ir_generator.h"
 #include <regex>
-#include <string>,
+#include <string>
 #include <vector>
 namespace cplab_ir_generator
 {
     // 总入口
     void ir_generator(ast_node &node)
     {
+        printf("Generating IR code for AST nodes...\n");
         // 先生成declaration相关结点的IR代码
         ir_gen_declaration(node);
+        printf("IR code for declaration nodes generated.\n");
         // 然后遍历所有节点,依次生成所有expression和condition结点的IR代码
         for (auto &child : node.children)
         {
             if (child->name == "condition")
             {
-                // 计算表达式的值,并将IR代码添加到节点的ir_code属性上
+                // 计算逻辑表达式的值,并将IR代码添加到节点的ir_code属性上
                 calculate_expression_value(*child,"bool"); // 传入子节点的类型
+            }
+            else if(child->name == "expression")
+            {
+                // 计算算术表达式的值,并将IR代码添加到节点的ir_code属性上
+                std::string type = get_arithmetic_expression_type(*child); // 获取算术表达式的类型
+                calculate_expression_value(*child,type); // 传入子节点的类型
             }
             else
             {
@@ -439,19 +447,21 @@ namespace cplab_ir_generator
     // 但凡事也有例外(悲)
     std::string calculate_expression_value(ast_node &node, std::string type)
     {
+        // 将当前节点的name及type打印在屏幕上
+        printf("Calculating expression value for node %d: %s with type %s\n", node.node_index, node.name.c_str(), type.c_str());
         auto [reg_type, reg_align] = get_reg_type_and_align(type);
         std::string ir_code = ""; // 用于存储当前节点的IR代码
         if(node.name == "expression")
         {
             // 根据推导式 expression: additive_expression; 知,expression节点的子节点只有一个,即additive_expression
-            ir_code = exp_gen_ir_code_from_only_child(node, type); // 生成只有一个子节点的exp节点的IR代码并将其返回
+            ir_code = exp_gen_ir_code_from_child(node, type, 0); // 生成只有一个子节点的exp节点的IR代码并将其返回
             node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
             return ir_code; // 返回当前节点的IR代码
         }
         else if(node.name == "condition")
         {
             // 根据推导式 condition: logical_or_expression; 知,condition节点的子节点只有一个,即logical_or_expression
-            ir_code = exp_gen_ir_code_from_only_child(node, type); // 生成只有一个子节点的exp节点的IR代码并将其返回
+            ir_code = exp_gen_ir_code_from_child(node, type, 0); // 生成只有一个子节点的exp节点的IR代码并将其返回
             node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
             return ir_code; // 返回当前节点的IR代码
         }
@@ -461,7 +471,7 @@ namespace cplab_ir_generator
             // 如果子节点只有logical_and_expression,则直接重用子节点的ir_code
             if(node.children.size() == 1 && node.children[0]->name == "logical_and_expression")
             {
-                ir_code = exp_gen_ir_code_from_only_child(node, type); // 直接重用子节点的ir_code
+                ir_code = exp_gen_ir_code_from_child(node, type, 0); // 直接重用子节点的ir_code
                 node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
                 return ir_code; // 返回当前节点的IR代码
             }
@@ -493,7 +503,7 @@ namespace cplab_ir_generator
             // 如果子节点只有equal_expression,则直接重用子节点的ir_code
             if(node.children.size() == 1 && node.children[0]->name == "equal_expression")
             {
-                ir_code = exp_gen_ir_code_from_only_child(node, type); // 直接重用子节点的ir_code
+                ir_code = exp_gen_ir_code_from_child(node, type, 0); // 直接重用子节点的ir_code
                 node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
                 return ir_code; // 返回当前节点的IR代码
             }
@@ -525,7 +535,7 @@ namespace cplab_ir_generator
             // 如果子节点只有relational_expression,则直接重用子节点的ir_code
             if(node.children.size() == 1 && node.children[0]->name == "relational_expression")
             {
-                ir_code = exp_gen_ir_code_from_only_child(node, type); // 直接重用子节点的ir_code
+                ir_code = exp_gen_ir_code_from_child(node, type, 0); // 直接重用子节点的ir_code
                 node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
                 return ir_code; // 返回当前节点的IR代码
             }
@@ -629,129 +639,511 @@ namespace cplab_ir_generator
         else if(node.name == "relational_expression")
         {
             // 对于relational_expression节点 我们需要先获取其additive_expression子节点的数据类型,以便于求子节点的ir_code
-            // 该节点中存储的指针可能有两种类型
-            // 对于形如"a"的结点,我们存储int float char类型的指针
-            // 对于形如"a<b"的结点,我们存储bool类型的指针(即i8)
-
-            // 如果只有一个additive_expression子节点,那么我们先确认子节点的类型,然后生成其IR代码并赋给当前节点
-            if(node.children.size() == 1 && node.children[0]->name == "additive_expression")
+            // 该节点中存储的指针有多种情况
+            // 对于形如"a<b"的结点,我们存储bool类型的指针(即i1) 同时其两个relational_expression子节点a和b均存储int类型
+            // 如果是单独的一个"a"节点 我们将这里面存储的int类型转成bool类型后存储
+            if(node.children.size() == 1 && node.children[0]->name == "additive_expression" && node.parent != nullptr && node.parent->name != "relational_expression")
             {
-                std::string child_type = get_arithmetic_expression_type(*node.children[0]); // 获取子节点的基本类型
-                ir_code = exp_gen_ir_code_from_only_child(node, child_type); // 生成只有一个子节点的exp节点的IR代码并将其返回
+                std::string ir_code = ""; // 用于存储当前节点的IR代码
+                std::string ir_code_from_child = calculate_expression_value(*node.children[0], "int"); // 先生成子节点的ir_code,子节点的数据类型为int
+                // 将子节点临时寄存器中的表达式值赋给当前节点的临时寄存器
+                std::string child_reg_name = "%" + std::to_string(node.children[0]->node_index); // 子节点的临时寄存器名称
+                std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
+                std::string tmp_reg_name_1 = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index) + "_1"; // 临时寄存器名称1
+                std::string tmp_reg_name_2 = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index) + "_2"; // 临时寄存器名称2
+                std::string tmp_reg_name_3 = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index) + "_3"; // 临时寄存器名称3
+                // 从子节点的寄存器加载值到临时寄存器
+                std::string assign_ir_code_1 = tmp_reg_name_1 + " = load i32, ptr " + child_reg_name + ", align 4\n";
+                // 判断tem_reg_name_1中的值是否为0
+                std::string assign_ir_code_2 = tmp_reg_name_2 + " = icmp ne i32 " + tmp_reg_name_1 + ", 0\n";
+                // 将比较后的结果赋给当前节点的临时寄存器
+                std::string assign_ir_code_3 = "store i1 " + tmp_reg_name_2 + ", ptr " + current_reg_name + ", align 1\n"; // 将临时寄存器的值存储到当前节点的寄存器
+                ir_code = ir_code_from_child + assign_ir_code_1 + assign_ir_code_2 + assign_ir_code_3; // 拼接IR代码
                 node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
                 return ir_code; // 返回当前节点的IR代码
             }
-            // 否则,说明该节点有三个子节点,即 relational_expression (RelationalOp) additive_expression
-            // 此时,左右两个算术表达式都被直接看做算术表达式,因此传入的type应当是int float char之一
-            // 左子节点会自行判断其数据类型,我们此处需要找到右子节点该有的数据类型
+            // // 否则 该relational_expression节点是作为某个relational_expression的子节点存在的
             else
             {
-                std::string child_type_r = get_arithmetic_expression_type(*node.children[2]); // 获取右侧子节点的类型
-                // 分别计算前后两个算术表达式的值 对于左子结点,其会自行判断数据类型
-                std::string left_ir_code = calculate_expression_value(*node.children[0], type);
-                std::string right_ir_code = calculate_expression_value(*node.children[2], child_type_r);
+                // 如果只有一个additive_expression子节点,那么我们先确认子节点的类型,然后生成其IR代码并赋给当前节点
+                if(node.children.size() == 1 && node.children[0]->name == "additive_expression")
+                {
+                    std::string child_type = get_arithmetic_expression_type(*node.children[0]); // 获取子节点的基本类型
+                    ir_code = exp_gen_ir_code_from_child(node, child_type, 0); // 生成只有一个子节点的exp节点的IR代码并将其返回
+                    node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                    return ir_code; // 返回当前节点的IR代码
+                }
+                // 否则,说明该节点有三个子节点,即 relational_expression (RelationalOp) additive_expression
+                // 此时,左右两个算术表达式都被直接看做算术表达式,因此传入的type应当是int float char之一
+                // 左子节点会自行判断其数据类型,我们此处需要找到右子节点该有的数据类型
+                else
+                {
+                    std::string child_type_l = get_arithmetic_expression_type(*node.children[0]); // 获取左侧子节点的类型
+                    std::string child_type_r = get_arithmetic_expression_type(*node.children[2]); // 获取右侧子节点的类型
+                    // 分别计算前后两个算术表达式的值 对于左子结点,其会自行判断数据类型
+                    std::string left_ir_code = calculate_expression_value(*node.children[0], child_type_l);
+                    std::string right_ir_code = calculate_expression_value(*node.children[2], child_type_r);
+                    // 生成临时寄存器名称
+                    std::string left_reg_name = "%" + std::to_string(node.children[0]->node_index); // 左侧子节点的临时寄存器名称
+                    std::string right_reg_name = "%" + std::to_string(node.children[2]->node_index); // 右侧子节点的临时寄存器名称
+                    std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
+                    std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
+                    auto [reg_type, reg_align] = get_reg_type_and_align(child_type_r); // 获取寄存器类型和对齐方式并覆盖上层变量
+                    // 加载子寄存器的值
+                    std::string left_load;
+                    std::string right_load;
+                    if(child_type_r == "int") // 如果是整数类型
+                    {
+                        left_load = tmp_reg_name + "_l = load i32, ptr " + left_reg_name + reg_align + "\n"; // 从左侧子节点的寄存器加载值到临时寄存器
+                        right_load = tmp_reg_name + "_r = load i32, ptr " + right_reg_name + reg_align + "\n"; // 从右侧子节点的寄存器加载值到临时寄存器
+                    }
+                    else if(child_type_r == "float") // 如果是浮点数类型
+                    {
+                        left_load = tmp_reg_name + "_l = load float, ptr " + left_reg_name + reg_align + "\n"; // 从左侧子节点的寄存器加载值到临时寄存器
+                        right_load = tmp_reg_name + "_r = load float, ptr " + right_reg_name + reg_align + "\n"; // 从右侧子节点的寄存器加载值到临时寄存器
+                    }
+                    else if(child_type_r == "char") // 如果是字符类型
+                    {
+                        left_load = tmp_reg_name + "_l = load i8, ptr " + left_reg_name + reg_align + "\n"; // 从左侧子节点的寄存器加载值到临时寄存器
+                        right_load = tmp_reg_name + "_r = load i8, ptr " + right_reg_name + reg_align + "\n"; // 从右侧子节点的寄存器加载值到临时寄存器
+                    }
+                    // 根据操作符和左右子节点的数据类型生成对应的比较指令. 例如当数据类型为int时,我们需要生成i32类型的比较指令
+                    std::string cmp_inst;
+                    std::string op = node.children[1]->cact_code; // 获取操作符
+                    if(child_type_r == "int")
+                    {
+                        if(op == "<") // 如果是小于操作符
+                        {
+                            cmp_inst = tmp_reg_name + "_cmp = icmp slt " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于比较指令
+                        }
+                        else if(op == "<=") // 如果是小于等于操作符
+                        {
+                            cmp_inst = tmp_reg_name + "_cmp = icmp sle " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于等于比较指令
+                        }
+                        else if(op == ">") // 如果是大于操作符
+                        {
+                            cmp_inst = tmp_reg_name + "_cmp = icmp sgt " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于比较指令
+                        }
+                        else if(op == ">=") // 如果是大于等于操作符
+                        {
+                            cmp_inst = tmp_reg_name + "_cmp = icmp sge " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于等于比较指令
+                        }
+                        else
+                        {
+                            throw std::runtime_error("Unsupported operator in relational_expression: " + op);
+                        }
+                    }
+                    else if(child_type_r == "float")
+                    {
+                        if(op == "<") // 如果是小于操作符
+                        {
+                            cmp_inst = tmp_reg_name + "_cmp = fcmp olt " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于比较指令
+                        }
+                        else if(op == "<=") // 如果是小于等于操作符
+                        {
+                            cmp_inst = tmp_reg_name + "_cmp = fcmp ole " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于等于比较指令
+                        }
+                        else if(op == ">") // 如果是大于操作符
+                        {
+                            cmp_inst = tmp_reg_name + "_cmp = fcmp ogt " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于比较指令
+                        }
+                        else if(op == ">=") // 如果是大于等于操作符
+                        {
+                            cmp_inst = tmp_reg_name + "_cmp = fcmp oge " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于等于比较指令
+                        }
+                        else
+                        {
+                            throw std::runtime_error("Unsupported operator in relational_expression: " + op);
+                        }
+                    }
+                    else if(child_type_r == "char")
+                    {
+                        if(op == "<") // 如果是小于操作符
+                        {
+                            cmp_inst = tmp_reg_name + "_cmp = icmp slt i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于比较指令
+                        }
+                        else if(op == "<=") // 如果是小于等于操作符
+                        {
+                            cmp_inst = tmp_reg_name + "_cmp = icmp sle i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于等于比较指令
+                        }
+                        else if(op == ">") // 如果是大于操作符
+                        {
+                            cmp_inst = tmp_reg_name + "_cmp = icmp sgt i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于比较指令
+                        }
+                        else if(op == ">=") // 如果是大于等于操作符
+                        {
+                            cmp_inst = tmp_reg_name + "_cmp = icmp sge i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于等于比较指令
+                        }
+                        else
+                        {
+                            throw std::runtime_error("Unsupported operator in relational_expression: " + op);
+                        }
+                    }
+                    // 将运算结果存储到当前节点临时寄存器中,这里数据类型要改回bool 即i1
+                    std::string store_inst = "store i1 " + tmp_reg_name + "_cmp, ptr " + current_reg_name + ", align 1\n"; // 将比较结果存储到当前节点的寄存器
+                    ir_code = left_ir_code + right_ir_code + left_load + right_load + cmp_inst + store_inst; // 拼接IR代码
+                    node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                    return ir_code; // 返回当前节点的IR代码
+                }
+            }
+        }
+        else if(node.name == "additive_expression")
+        {
+            //加法表达式的生成式是additive_expression: multiplicative_expression | additive_expression (Plus | Minus) multiplicative_expression;
+            // 如果只有一个multiplicative_expression子节点,那么将子节点的ir_code赋给当前节点
+            if(node.children.size() == 1 && node.children[0]->name == "multiplicative_expression")
+            {
+                ir_code = exp_gen_ir_code_from_child(node, type, 0); // 生成只有一个子节点的exp节点的IR代码并将其返回
+                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                return ir_code; // 返回当前节点的IR代码
+            }
+            // 否则,说明该节点有三个子节点,即 additive_expression (Plus | Minus) multiplicative_expression 直接根据已知type计算其值
+            else
+            {
+                // 分别计算左右两个算术表达式的值
+                std::string left_ir_code = calculate_expression_value(*node.children[0], type); // 计算左侧算术表达式的值
+                std::string right_ir_code = calculate_expression_value(*node.children[2], type); // 计算右侧算术表达式的值
                 // 生成临时寄存器名称
                 std::string left_reg_name = "%" + std::to_string(node.children[0]->node_index); // 左侧子节点的临时寄存器名称
                 std::string right_reg_name = "%" + std::to_string(node.children[2]->node_index); // 右侧子节点的临时寄存器名称
                 std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
                 std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
-                auto [reg_type, reg_align] = get_reg_type_and_align(child_type_r); // 获取寄存器类型和对齐方式并覆盖上层变量
                 // 加载子寄存器的值
                 std::string left_load;
                 std::string right_load;
-                if(child_type_r == "int") // 如果是整数类型
+                if(type == "int") // 如果是整数类型
                 {
-                    left_load = tmp_reg_name + "_l = load i32, ptr " + left_reg_name + reg_align + "\n"; // 从左侧子节点的寄存器加载值到临时寄存器
-                    right_load = tmp_reg_name + "_r = load i32, ptr " + right_reg_name + reg_align + "\n"; // 从右侧子节点的寄存器加载值到临时寄存器
+                    left_load = tmp_reg_name + "_l = load i32, ptr " + left_reg_name + ", align 4\n"; // 从左侧子节点的寄存器加载值到临时寄存器
+                    right_load = tmp_reg_name + "_r = load i32, ptr " + right_reg_name + ", align 4\n"; // 从右侧子节点的寄存器加载值到临时寄存器
                 }
-                else if(child_type_r == "float") // 如果是浮点数类型
+                else if(type == "float") // 如果是浮点数类型
                 {
-                    left_load = tmp_reg_name + "_l = load float, ptr " + left_reg_name + reg_align + "\n"; // 从左侧子节点的寄存器加载值到临时寄存器
-                    right_load = tmp_reg_name + "_r = load float, ptr " + right_reg_name + reg_align + "\n"; // 从右侧子节点的寄存器加载值到临时寄存器
+                    left_load = tmp_reg_name + "_l = load float, ptr " + left_reg_name + ", align 4\n"; // 从左侧子节点的寄存器加载值到临时寄存器
+                    right_load = tmp_reg_name + "_r = load float, ptr " + right_reg_name + ", align 4\n"; // 从右侧子节点的寄存器加载值到临时寄存器
                 }
-                else if(child_type_r == "char") // 如果是字符类型
+                else if(type == "char") // 如果是字符类型
                 {
-                    left_load = tmp_reg_name + "_l = load i8, ptr " + left_reg_name + reg_align + "\n"; // 从左侧子节点的寄存器加载值到临时寄存器
-                    right_load = tmp_reg_name + "_r = load i8, ptr " + right_reg_name + reg_align + "\n"; // 从右侧子节点的寄存器加载值到临时寄存器
+                    left_load = tmp_reg_name + "_l = load i8, ptr " + left_reg_name + ", align 1\n"; // 从左侧子节点的寄存器加载值到临时寄存器
+                    right_load = tmp_reg_name + "_r = load i8, ptr " + right_reg_name + ", align 1\n"; // 从右侧子节点的寄存器加载值到临时寄存器
                 }
-                // 根据操作符和左右子节点的数据类型生成对应的比较指令. 例如当数据类型为int时,我们需要生成i32类型的比较指令
+                else
+                {
+                    throw std::runtime_error("Unsupported type in additive_expression: " + type);
+                }
+                // 根据操作符和左右子节点的数据类型生成对应的指令
                 std::string cmp_inst;
                 std::string op = node.children[1]->cact_code; // 获取操作符
-                if(child_type_r == "int")
+                if(type == "int")
                 {
-                    if(op == "<") // 如果是小于操作符
+                    if(op == "+") // 如果是加法操作符
                     {
-                        cmp_inst = tmp_reg_name + "_cmp = icmp slt " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于比较指令
+                        cmp_inst = tmp_reg_name + "_cmp = add i32 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成加法指令
                     }
-                    else if(op == "<=") // 如果是小于等于操作符
+                    else if(op == "-") // 如果是减法操作符
                     {
-                        cmp_inst = tmp_reg_name + "_cmp = icmp sle " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于等于比较指令
-                    }
-                    else if(op == ">") // 如果是大于操作符
-                    {
-                        cmp_inst = tmp_reg_name + "_cmp = icmp sgt " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于比较指令
-                    }
-                    else if(op == ">=") // 如果是大于等于操作符
-                    {
-                        cmp_inst = tmp_reg_name + "_cmp = icmp sge " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于等于比较指令
+                        cmp_inst = tmp_reg_name + "_cmp = sub i32 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成减法指令
                     }
                     else
                     {
-                        throw std::runtime_error("Unsupported operator in relational_expression: " + op);
+                        throw std::runtime_error("Unsupported operator in additive_expression: " + op);
                     }
                 }
-                else if(child_type_r == "float")
+                else if(type == "float")
                 {
-                    if(op == "<") // 如果是小于操作符
+                    if(op == "+") // 如果是加法操作符
                     {
-                        cmp_inst = tmp_reg_name + "_cmp = fcmp olt " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于比较指令
+                        cmp_inst = tmp_reg_name + "_cmp = fadd float " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成加法指令
                     }
-                    else if(op == "<=") // 如果是小于等于操作符
+                    else if(op == "-") // 如果是减法操作符
                     {
-                        cmp_inst = tmp_reg_name + "_cmp = fcmp ole " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于等于比较指令
-                    }
-                    else if(op == ">") // 如果是大于操作符
-                    {
-                        cmp_inst = tmp_reg_name + "_cmp = fcmp ogt " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于比较指令
-                    }
-                    else if(op == ">=") // 如果是大于等于操作符
-                    {
-                        cmp_inst = tmp_reg_name + "_cmp = fcmp oge " + reg_type + " " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于等于比较指令
+                        cmp_inst = tmp_reg_name + "_cmp = fsub float " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成减法指令
                     }
                     else
                     {
-                        throw std::runtime_error("Unsupported operator in relational_expression: " + op);
+                        throw std::runtime_error("Unsupported operator in additive_expression: " + op);
                     }
                 }
-                else if(child_type_r == "char")
+                else if(type == "char")
                 {
-                    if(op == "<") // 如果是小于操作符
+                    if(op == "+") // 如果是加法操作符
                     {
-                        cmp_inst = tmp_reg_name + "_cmp = icmp slt i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于比较指令
+                        cmp_inst = tmp_reg_name + "_cmp = add i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成加法指令
                     }
-                    else if(op == "<=") // 如果是小于等于操作符
+                    else if(op == "-") // 如果是减法操作符
                     {
-                        cmp_inst = tmp_reg_name + "_cmp = icmp sle i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成小于等于比较指令
-                    }
-                    else if(op == ">") // 如果是大于操作符
-                    {
-                        cmp_inst = tmp_reg_name + "_cmp = icmp sgt i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于比较指令
-                    }
-                    else if(op == ">=") // 如果是大于等于操作符
-                    {
-                        cmp_inst = tmp_reg_name + "_cmp = icmp sge i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成大于等于比较指令
+                        cmp_inst = tmp_reg_name + "_cmp = sub i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成减法指令
                     }
                     else
                     {
-                        throw std::runtime_error("Unsupported operator in relational_expression: " + op);
+                        throw std::runtime_error("Unsupported operator in additive_expression: " + op);
                     }
                 }
-                // 将运算结果存储到当前节点临时寄存器中,这里数据类型要改回bool 即i8
-                std::string store_inst = "store i1 " + tmp_reg_name + "_cmp, ptr " + current_reg_name + ", align 1\n"; // 将比较结果存储到当前节点的寄存器
+                else
+                {
+                    throw std::runtime_error("Unsupported type in additive_expression: " + type);
+                }
+                // 将运算结果存储到当前节点临时寄存器中
+                std::string store_inst;
+                if(type == "int")
+                {
+                    store_inst = "store i32 " + tmp_reg_name + "_cmp, ptr " + current_reg_name + ", align 4\n"; // 将计算结果存储到当前节点的寄存器
+                }
+                else if(type == "float")
+                {
+                    store_inst = "store float " + tmp_reg_name + "_cmp, ptr " + current_reg_name + ", align 4\n"; // 将计算结果存储到当前节点的寄存器
+                }
+                else if(type == "char")
+                {
+                    store_inst = "store i8 " + tmp_reg_name + "_cmp, ptr " + current_reg_name + ", align 1\n"; // 将计算结果存储到当前节点的寄存器
+                }
+                else
+                {
+                    throw std::runtime_error("Unsupported type in additive_expression: " + type);
+                }
                 ir_code = left_ir_code + right_ir_code + left_load + right_load + cmp_inst + store_inst; // 拼接IR代码
                 node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
                 return ir_code; // 返回当前节点的IR代码
             }
+        }
+        else if(node.name == "multiplicative_expression")
+        {
+            //乘法表达式的生成式是multiplicative_expression: unary_expression | multiplicative_expression (Asterisk | Slash | Percent) unary_expression;
+            // 如果只有一个unary_expression子节点,那么将子节点的ir_code赋给当前节点
+            if(node.children.size() == 1 && node.children[0]->name == "unary_expression")
+            {
+                ir_code = exp_gen_ir_code_from_child(node, type, 0); // 生成只有一个子节点的exp节点的IR代码并将其返回
+                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                return ir_code; // 返回当前节点的IR代码
+            }
+            // 否则,说明该节点有三个子节点,即 multiplicative_expression (Multiply | Divide | Mod) unary_expression 直接根据已知type计算其值
+            else
+            {
+                // 分别计算左右两个算术表达式的值
+                std::string left_ir_code = calculate_expression_value(*node.children[0], type); // 计算左侧算术表达式的值
+                std::string right_ir_code = calculate_expression_value(*node.children[2], type); // 计算右侧算术表达式的值
+                // 生成临时寄存器名称
+                std::string left_reg_name = "%" + std::to_string(node.children[0]->node_index); // 左侧子节点的临时寄存器名称
+                std::string right_reg_name = "%" + std::to_string(node.children[2]->node_index); // 右侧子节点的临时寄存器名称
+                std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
+                std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
+                // 加载子寄存器的值
+                std::string left_load;
+                std::string right_load;
+                if(type == "int") // 如果是整数类型
+                {
+                    left_load = tmp_reg_name + "_l = load i32, ptr " + left_reg_name + ", align 4\n"; // 从左侧子节点的寄存器加载值到临时寄存器
+                    right_load = tmp_reg_name + "_r = load i32, ptr " + right_reg_name + ", align 4\n"; // 从右侧子节点的寄存器加载值到临时寄存器
+                }
+                else if(type == "float") // 如果是浮点数类型
+                {
+                    left_load = tmp_reg_name + "_l = load float, ptr " + left_reg_name + ", align 4\n"; // 从左侧子节点的寄存器加载值到临时寄存器
+                    right_load = tmp_reg_name + "_r = load float, ptr " + right_reg_name + ", align 4\n"; // 从右侧子节点的寄存器加载值到临时寄存器
+                }
+                else if(type == "char") // 如果是字符类型
+                {
+                    left_load = tmp_reg_name + "_l = load i8, ptr " + left_reg_name + ", align 1\n"; // 从左侧子节点的寄存器加载值到临时寄存器
+                    right_load = tmp_reg_name + "_r = load i8, ptr " + right_reg_name + ", align 1\n"; // 从右侧子节点的寄存器加载值到临时寄存器
+                }
+                else
+                {
+                    throw std::runtime_error("Unsupported type in multiplicative_expression: " + type);
+                }
+                // 根据操作符和左右子节点的数据类型生成对应的指令
+                std::string cmp_inst;
+                std::string op = node.children[1]->cact_code; // 获取操作符
+                if(type == "int")
+                {
+                    if(op == "*") // 如果是乘法操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = mul i32 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成乘法指令
+                    }
+                    else if(op == "/") // 如果是除法操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = sdiv i32 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成除法指令
+                    }
+                    else if(op == "%") // 如果是取模操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = srem i32 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成取模指令
+                    }
+                    else
+                    {
+                        throw std::runtime_error("Unsupported operator in multiplicative_expression: " + op);
+                    }
+                }
+                else if(type == "float")
+                {
+                    if(op == "*") // 如果是乘法操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = fmul float " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成乘法指令
+                    }
+                    else if(op == "/") // 如果是除法操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = fdiv float " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成除法指令
+                    }
+                    else
+                    {
+                        throw std::runtime_error("Unsupported operator in multiplicative_expression: " + op);
+                    }
+                }
+                else if(type == "char")
+                {
+                    if(op == "*") // 如果是乘法操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = mul i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成乘法指令
+                    }
+                    else if(op == "/") // 如果是除法操作符
+                    {
+                        cmp_inst = tmp_reg_name + "_cmp = sdiv i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成除法指令
+                    }
+
+                }
+                else
+                {
+                    throw std::runtime_error("Unsupported type in multiplicative_expression: " + type);
+                }
+                // 将运算结果存储到当前节点临时寄存器中
+                std::string store_inst;
+                if(type == "int")
+                {
+                    store_inst = "store i32 " + tmp_reg_name + "_cmp, ptr " + current_reg_name + ", align 4\n"; // 将计算结果存储到当前节点的寄存器
+                }
+                else if(type == "float")
+                {
+                    store_inst = "store float " + tmp_reg_name + "_cmp, ptr " + current_reg_name + ", align 4\n"; // 将计算结果存储到当前节点的寄存器
+                }
+                else if(type == "char")
+                {
+                    store_inst = "store i8 " + tmp_reg_name + "_cmp, ptr " + current_reg_name + ", align 1\n"; // 将计算结果存储到当前节点的寄存器
+                }
+                else
+                {
+                    throw std::runtime_error("Unsupported type in additive_expression: " + type);
+                }
+                ir_code = left_ir_code + right_ir_code + left_load + right_load + cmp_inst + store_inst; // 拼接IR代码
+                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                return ir_code; // 返回当前节点的IR代码
+            }
+        }
+        else if(node.name == "unary_expression")
+        {
+            //一元表达式的生成式是unary_expression: primary_expression | (Plus | Minus | ExclamationMark) unary_expression | Identifier LeftParenthesis (function_real_params)? RightParenthesis;
+            // 如果只有一个primary_expression子节点,那么将子节点的ir_code赋给当前节点
+            if(node.children.size() == 1 && node.children[0]->name == "primary_expression")
+            {
+                ir_code = exp_gen_ir_code_from_child(node, type, 0); // 生成只有一个子节点的exp节点的IR代码并将其返回
+                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                return ir_code; // 返回当前节点的IR代码
+            }
+            // 如果第一个子节点是Identifier 说明是函数调用 直接将函数节点的ir_code赋给当前节点
+            else if(node.children.size() > 1 && node.children[0]->name == "Identifier")
+            {
+                ir_code = exp_gen_ir_code_from_child(node, type, 0); // 虽然不止一个子节点 但是函数总是第一个子节点 所以我照用
+                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                return ir_code; // 返回当前节点的IR代码
+            }
+            // 其余情况下 说明该节点有两个子节点,即 (Plus | Minus | ExclamationMark) unary_expression
+            else
+            {
+                std::string op = node.children[0]->cact_code; // 获取操作符
+                // 如果op是"+" 则只当无事发生
+                if(op == "+")
+                {
+                    ir_code = exp_gen_ir_code_from_child(node, type, 1); // 直接重用子节点的ir_code
+                    node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                    return ir_code; // 返回当前节点的IR代码
+                }
+                // 如果op是"-" 则需要根据子节点的数据类型,进行对应的取反操作后赋给当前节点
+                else if(op == "-")
+                {
+                    auto [reg_type, reg_align] = get_reg_type_and_align(type);
+                    std::string ir_code = ""; // 用于存储当前节点的IR代码
+                    std::string ir_code_from_child = calculate_expression_value(*node.children[1], type); // 先生成子节点的ir_code
+                    // 将子节点临时寄存器中的表达式值赋给当前节点的临时寄存器
+                    std::string child_reg_name = "%" + std::to_string(node.children[1]->node_index); // 子节点的临时寄存器名称
+                    std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
+                    std::string tmp_reg_name_1 = "%tmp_" + std::to_string(node.children[1]->node_index) + "_to_" + std::to_string(node.node_index) + "_1"; // 临时寄存器名称1
+                    std::string tmp_reg_name_2 = "%tmp_" + std::to_string(node.children[1]->node_index) + "_to_" + std::to_string(node.node_index) + "_2"; // 临时寄存器名称2
+                    // 从子节点的寄存器加载值到临时寄存器1
+                    std::string assign_ir_code_1 = tmp_reg_name_1 + " = load " + reg_type + ", ptr " + child_reg_name + reg_align + "\n";
+                    // 将临时寄存器1的值取反后存到临时寄存器2
+                    std::string assign_ir_code_2;
+                    if(type == "int") // 如果是整数类型
+                    {
+                        assign_ir_code_2 = tmp_reg_name_2 + " = sub i32 0, " + tmp_reg_name_1 + "\n"; // 生成整数取反指令
+                    }
+                    else if(type == "float") // 如果是浮点数类型
+                    {
+                        assign_ir_code_2 = tmp_reg_name_2 + " = fsub float 0.0, " + tmp_reg_name_1 + "\n"; // 生成浮点数取反指令
+                    }
+                    else if(type == "char") // 如果是字符类型
+                    {
+                        assign_ir_code_2 = tmp_reg_name_2 + " = sub i8 0, " + tmp_reg_name_1 + "\n"; // 生成字符取反指令
+                    }
+                    else
+                    {
+                        throw std::runtime_error("Unsupported type in unary_expression: " + type);
+                    }
+                    // 将临时寄存器2的值存储到当前节点的寄存器
+                    std::string assign_ir_code_3 = "store " + reg_type + " " + tmp_reg_name_2 + ", ptr " + current_reg_name + reg_align + "\n"; // 将临时寄存器的值存储到当前节点的寄存器
+                    ir_code = ir_code_from_child + assign_ir_code_1 + assign_ir_code_2 + assign_ir_code_3; // 拼接IR代码
+                    node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                    return ir_code; // 返回当前节点的IR代码
+                }
+                // 如果op是"!" 那么我们默认子节点的数据类型是int 而当前节点的数据类型为bool
+                // 如果子节点临时寄存器中的值是i32类型的0，则将当前节点临时寄存器赋为i8类型的0
+                // 否则将当前节点临时寄存器赋为i8类型的1
+                else if(op == "!")
+                {
+                    std::string ir_code = ""; // 用于存储当前节点的IR代码
+                    std::string ir_code_from_child = calculate_expression_value(*node.children[1], "int"); // 先生成子节点的ir_code,子节点的数据类型为int
+                    // 将子节点临时寄存器中的表达式值赋给当前节点的临时寄存器
+                    std::string child_reg_name = "%" + std::to_string(node.children[1]->node_index); // 子节点的临时寄存器名称
+                    std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
+                    std::string tmp_reg_name_1 = "%tmp_" + std::to_string(node.children[1]->node_index) + "_to_" + std::to_string(node.node_index) + "_1"; // 临时寄存器名称1
+                    std::string tmp_reg_name_2 = "%tmp_" + std::to_string(node.children[1]->node_index) + "_to_" + std::to_string(node.node_index) + "_2"; // 临时寄存器名称2
+                    std::string tmp_reg_name_3 = "%tmp_" + std::to_string(node.children[1]->node_index) + "_to_" + std::to_string(node.node_index) + "_3"; // 临时寄存器名称3
+                    // 从子节点的寄存器加载值到临时寄存器
+                    std::string assign_ir_code_1 = tmp_reg_name_1 + " = load i32, ptr " + child_reg_name + ", align 4\n";
+                    // 判断tem_reg_name_1中的值是否为0 由于我们取了!,所以如果是0则为true,否则为false
+                    std::string assign_ir_code_2 = tmp_reg_name_2 + " = icmp eq i32 " + tmp_reg_name_1 + ", 0\n";
+                    // 将比较后的结果赋给当前节点的临时寄存器
+                    std::string assign_ir_code_3 = "store i1 " + tmp_reg_name_2 + ", ptr " + current_reg_name + ", align 1\n"; // 将临时寄存器的值存储到当前节点的寄存器
+                    ir_code = ir_code_from_child + assign_ir_code_1 + assign_ir_code_2 + assign_ir_code_3; // 拼接IR代码
+                    node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                    return ir_code; // 返回当前节点的IR代码
+                }
+                else
+                {
+                    throw std::runtime_error("Unsupported operator in unary_expression: " + op);
+                }
+            }
+        }
+        else if(node.name == "primary_expression")
+        {
+            // primary_expression的生成式是primary_expression: LeftParenthesis expression RightParenthesis | left_value | number;
+            // 如果有三个子节点,则说明是左括号表达式,直接重用第二个子节点的ir_code
+            if(node.children.size() == 3 && node.children[0]->name == "LeftParenthesis" && node.children[2]->name == "RightParenthesis")
+            {
+                ir_code = exp_gen_ir_code_from_child(node, type, 1); // 生成只有一个子节点的exp节点的IR代码并将其返回
+                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                return ir_code; // 返回当前节点的IR代码
+            }
+            // 否则 说明子节点是left_value或number 重用该节点的ir_code
+            else if(node.children.size() == 1 && (node.children[0]->name == "left_value" || node.children[0]->name == "number"))
+            {
+                ir_code = exp_gen_ir_code_from_child(node, type, 0); // 生成只有一个子节点的exp节点的IR代码并将其返回
+                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                return ir_code; // 返回当前节点的IR代码
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported primary_expression structure");
+            }
+        }
+        else if(node.name == "left_value")
+        {
+            // left_value的生成式是 left_value: Identifier (LeftBracket expression RightBracket)*;
+            // 我们分别考虑id是不是数组的两种情况
         }
         else
         {
@@ -759,19 +1151,19 @@ namespace cplab_ir_generator
         }
     }
 
-    // 生成只有一个子节点的exp节点的IR代码并将其返回
-    // 对于某个exp节点,如果其只有一个子节点,则该节点的代码由两部分组成
+    // 根据特定子节点，生成一个exp的ir_code并返回
+    // 对于某个exp节点,如果其ir_code只跟特定的子节点有关,则该节点的代码由两部分组成
     // 第一部分是将子节点的ir_code赋给当前节点,第二部分是将子节点的临时寄存器中的值赋给当前节点的临时寄存器
     // 这里的临时寄存器名称为"%node_index",即当前节点的索引
-    std::string exp_gen_ir_code_from_only_child(ast_node &node, std::string type)
+    std::string exp_gen_ir_code_from_child(ast_node &node, std::string type, int child_index)
     {
         auto [reg_type, reg_align] = get_reg_type_and_align(type);
         std::string ir_code = ""; // 用于存储当前节点的IR代码
-        std::string ir_code_from_child = calculate_expression_value(*node.children[0], type); // 先生成子节点的ir_code
+        std::string ir_code_from_child = calculate_expression_value(*node.children[child_index], type); // 先生成子节点的ir_code
         // 将子节点临时寄存器中的表达式值赋给当前节点的临时寄存器
-        std::string child_reg_name = "%" + std::to_string(node.children[0]->node_index); // 子节点的临时寄存器名称
+        std::string child_reg_name = "%" + std::to_string(node.children[child_index]->node_index); // 子节点的临时寄存器名称
         std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
-        std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[0]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
+        std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[child_index]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
         // 生成赋值代码
         std::string assign_ir_code_1 = tmp_reg_name + " = load " + reg_type + ", ptr " + child_reg_name + reg_align + "\n"; // 从子节点的寄存器加载值到临时寄存器 
         std::string assign_ir_code_2 = "store" + reg_type + " " + tmp_reg_name + ", ptr " + current_reg_name + reg_align + "\n"; // 将临时寄存器的值存储到当前节点的寄存器
@@ -807,12 +1199,24 @@ namespace cplab_ir_generator
             if( child->name == "expression" ||
                 child->name == "additive_expression" ||
                 child->name == "multiplicative_expression" ||
-                child->name == "unary_expression" ||
                 child->name == "primary_expression"||  //如果子节点也是算术表达式,那么递归调用函数
                 child->name == "number" ||
                 child->name == "left_value") //如果子节点是number或left_value,再递归一次,其第一个子节点的类型就是我们要找的
             {
                 return get_arithmetic_expression_type(*child);
+            }
+            else if(child->name == "unary_expression")
+            {
+                // 如果子节点是unary_expression,需要详细判断这个节点的类型究竟是bool还是其他数值类型
+                // 如果第一个子节点的cact_code是"!" 则将其视为bool类型 其余情况不变
+                if(child->children.size() > 0 && child->children[0]->cact_code == "!")
+                {
+                    return "bool"; // 如果是逻辑非操作符,则返回bool类型
+                }
+                else
+                {
+                    return get_arithmetic_expression_type(*child); // 否则递归调用
+                }
             }
             else if(child->name == "IntegerConstant")
             {
@@ -835,6 +1239,10 @@ namespace cplab_ir_generator
                     if(id->type == "int" || id->type == "float" || id->type == "char") // 如果是基本类型则直接返回
                     {
                         return id->type;
+                    }
+                    else if(id->kind == IdKind::Func) //如果是函数,返回其返回类型
+                    {
+                        return id->func_return_type;
                     }
                     else // 如果是数组类型,则返回其基本类型
                     {

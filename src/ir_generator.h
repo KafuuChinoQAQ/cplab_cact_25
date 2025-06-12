@@ -15,8 +15,8 @@ namespace cplab_ir_generator
     std::variant<int, float, char> calculate_constant_expression_value(const ast_node &node, std::string type);
     // 计算一个任意的变量表达式的值,接受一个expression节点,将ir_code添加到节点的属性上,并返回在IR中暂存了该值的寄存器%n
     std::string calculate_expression_value(ast_node &node, std::string type);
-    // 生成只有一个子节点的exp节点的IR代码并将其返回
-    std::string exp_gen_ir_code_from_only_child(ast_node &node, std::string type);
+    // 根据特定子节点，生成一个exp的ir_code并返回
+    std::string exp_gen_ir_code_from_child(ast_node &node, std::string type, int child_index);
     // 获取寄存器类型和对齐方式的函数
     std::pair<std::string, std::string> get_reg_type_and_align(const std::string& type);
     // 获取一个算术表达式应该是什么数据类型的函数,由于我们仅允许相同类型的数据进行算术运算,只需要遍历到第一个终结符节点即可
