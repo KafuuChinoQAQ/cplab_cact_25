@@ -87,6 +87,7 @@ namespace cplab_ir_generator
                 // 如果id位于非全局作用域中 则定义一个局部变量
                 if(node.scope_ptr->name != "global")
                 {
+                    current_id->is_global = false; // 设置为局部变量
                     std::string ir_code_1=""; // 用于存储IR代码的第一部分 即声明部分
                     std::string ir_code_2=""; // 用于存储IR代码的第二部分 即初始化部分
                     // 找到对应的标识符,生成ir_code的第一部分
@@ -282,6 +283,7 @@ namespace cplab_ir_generator
                 // 否则定义全局变量
                 else
                 {
+                    current_id->is_global = true; // 设置为全局变量
                     if (current_id->type == "int")
                     {
                         // 由于全局变量必须初始化,我们首先找到初始化的值
@@ -1309,11 +1311,18 @@ namespace cplab_ir_generator
                 // 如果只有一个子节点,则说明是标识符,根据当前type将标识符临时寄存器的值赋给当前节点的临时寄存器
                 // 先找到对应identifier的寄存器名称
                 identifier* id = find_identifier_in_scope(*node.children[0], node.children[0]->cact_code); // 查找标识符节点
-                // 注意 当前节点临时寄存器是一个指针 但标识符临时寄存器里面存放的是立即数
                 std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的寄存器名称
                 std::string tmp_reg_name = "%tmp_" + std::to_string(node.node_index); // 临时寄存器名称
                 // 从标识符的寄存器加载值到临时寄存器
-                std::string assign_ir_code = tmp_reg_name + " = load " + reg_type + ", ptr %id_" + std::to_string(id->id_index) + reg_align + "\n"; // 从标识符的寄存器加载值到临时寄存器
+                std::string assign_ir_code;
+                if(id->is_global == false)
+                {
+                    assign_ir_code = tmp_reg_name + " = load " + reg_type + ", ptr %id_" + std::to_string(id->id_index) + reg_align + "\n"; // 从局部标识符的寄存器加载值到临时寄存器
+                }
+                else
+                {
+                    assign_ir_code = tmp_reg_name + " = load " + reg_type + ", ptr @id_" + std::to_string(id->id_index) + reg_align + "\n"; // 从全局标识符的寄存器加载值到临时寄存器
+                }
                 // 将临时寄存器的值存储到当前节点的寄存器
                 std::string store_ir_code = "store " + reg_type + " " + tmp_reg_name + ", ptr " + current_reg_name + reg_align + "\n"; // 将临时寄存器的值存储到当前节点的寄存器
                 node.ir_code = assign_ir_code + store_ir_code; // 拼接IR代码
@@ -1322,18 +1331,89 @@ namespace cplab_ir_generator
             else if(node.children.size() > 1)
             {
                 // 如果有多个子节点,说明是数组访问
+                identifier* id = find_identifier_in_scope(*node.children[0], node.children[0]->cact_code); // 查找标识符节点
                 // 首先获取left_value节点的cact_code 并从中分离出数组名和索引
                 std::string array_name = node.children[0]->cact_code; // 数组名 如"array"
                 // 将cact_code减去开头的标识符部分得到剩余的索引部分 如"[2][3]""
-                std::string index = node.cact_code.substr(array_name.length());
-                printf("array_name: %s, index: %s\n", array_name.c_str(), index.c_str()); // 调试输出
-                return "";
+                std::string index_string = node.cact_code.substr(array_name.length());
+                // 直接将多维数组当成一维来做 在取数组 int a[n1][n2][n3]...[nk] 的 a[i1][i2][i3]...[ik] 的值时
+                // 我们将其看成一维数组 a[i1*n2*n3*...*nk + i2*n3*...*nk + i3*...*nk + ... + ik] 的值
+                // 先根据Identifier的type来获取数组各维度的大小 例如当type="int[2][3][4]"时 各维度分别为 n1=2, n2=3, n3=4
+                // 如果n1不存在,即函数参数中数组的最外层维度被忽略,则将其置为0
+                std::vector<int> array_sizes; // 用于存储数组各维度的大小
+                std::string array_type = id->type; // 获取数组的类型
+                // 解析数组类型字符串,提取各维度大小
+                size_t pos = 0;
+                while ((pos = array_type.find('[')) != std::string::npos) 
+                {
+                    size_t end_pos = array_type.find(']', pos);
+                    if (end_pos == std::string::npos) 
+                    {
+                        throw std::runtime_error("Invalid array type format: " + array_type);
+                    }
+                    std::string size_str = array_type.substr(pos + 1, end_pos - pos - 1); // 提取维度大小
+                    if (size_str.empty()) 
+                    {
+                        array_sizes.push_back(0); // 如果没有指定大小,则默认为0
+                    } 
+                    else 
+                    {
+                        array_sizes.push_back(std::stoi(size_str)); // 将字符串转换为整数
+                    }
+                    array_type.erase(0, end_pos + 1); // 移除已处理的部分
+                }
+                // 类似的 从index_string中提取i1 i2 i3 ... ik的值
+                std::vector<int> indices; // 用于存储索引值
+                pos = 0;
+                while ((pos = index_string.find('[')) != std::string::npos) 
+                {
+                    size_t end_pos = index_string.find(']', pos);
+                    if (end_pos == std::string::npos) 
+                    {
+                        throw std::runtime_error("Invalid index format: " + index_string);
+                    }
+                    std::string index_str = index_string.substr(pos + 1, end_pos - pos - 1); // 提取索引值
+                    indices.push_back(std::stoi(index_str)); // 将字符串转换为整数
+                    index_string.erase(0, end_pos + 1); // 移除已处理的部分
+                }
+                int true_index = 0; // 用于存储计算后的真实索引
+                // 计算真实索引
+                for (size_t i = 0; i < indices.size(); ++i) 
+                {
+                    int multiplier = 1; // 用于计算当前维度的乘数
+                    for (size_t j = i + 1; j < array_sizes.size(); ++j) 
+                    {
+                        multiplier *= array_sizes[j]; // 计算当前维度的乘数
+                    }
+                    true_index += indices[i] * multiplier; // 累加到真实索引
+                }
+                // 现在我们已经得到了真实索引,接下来生成IR代码
+                std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的寄存器名称
+                std::string tmp_reg_name_1 = "%tmp_" + std::to_string(node.node_index) + "_1"; // 临时寄存器1
+                std::string tmp_reg_name_2 = "%tmp_" + std::to_string(node.node_index) + "_2"; // 临时寄存器2
+
+                // 获取我们需要的值的地址并存入临时寄存器1
+                std::string ptr_ir_code;
+                if(id->is_global == false)
+                {
+                    ptr_ir_code = tmp_reg_name_1 + " = getelementptr " + reg_type + ", ptr %id_" + std::to_string(id->id_index) + ", i32 " + std::to_string(true_index) + "\n"; // 从局部标识符的寄存器加载值到临时寄存器
+                }
+                else
+                {
+                    ptr_ir_code = tmp_reg_name_2 + " = getelementptr " + reg_type + ", ptr @id_" + std::to_string(id->id_index) + ", i32 " + std::to_string(true_index) + "\n"; // 从全局标识符的寄存器加载值到临时寄存器
+                }
+                // 将该地址的值加载到临时寄存器2
+                std::string assign_ir_code;
+                assign_ir_code = tmp_reg_name_2 + " = load " + reg_type + ", ptr " + tmp_reg_name_1 + reg_align + "\n";
+                // 将临时寄存器2的地址加载到当前节点的寄存器中
+                std::string store_ir_code = "store " + reg_type + " " + tmp_reg_name_2 + ", ptr " + current_reg_name + reg_align + "\n"; // 将临时寄存器的值存储到当前节点的寄存器
+                node.ir_code = ptr_ir_code + assign_ir_code + store_ir_code; // 拼接IR代码
+                return node.ir_code; // 返回当前节点的IR代码
             }
             else
             {
                 throw std::runtime_error("Unsupported left_value structure");
             }
-            return "";
         }
         else
         {
@@ -1356,7 +1436,7 @@ namespace cplab_ir_generator
         std::string tmp_reg_name = "%tmp_" + std::to_string(node.children[child_index]->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
         // 生成赋值代码
         std::string assign_ir_code_1 = tmp_reg_name + " = load " + reg_type + ", ptr " + child_reg_name + reg_align + "\n"; // 从子节点的寄存器加载值到临时寄存器 
-        std::string assign_ir_code_2 = "store" + reg_type + " " + tmp_reg_name + ", ptr " + current_reg_name + reg_align + "\n"; // 将临时寄存器的值存储到当前节点的寄存器
+        std::string assign_ir_code_2 = "store " + reg_type + " " + tmp_reg_name + ", ptr " + current_reg_name + reg_align + "\n"; // 将临时寄存器的值存储到当前节点的寄存器
         ir_code = ir_code_from_child + assign_ir_code_1 + assign_ir_code_2; // 拼接IR代码
         node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
         return ir_code; // 返回当前节点的IR代码
