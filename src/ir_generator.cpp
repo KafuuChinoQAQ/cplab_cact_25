@@ -1196,12 +1196,75 @@ namespace cplab_ir_generator
                 node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
                 return ir_code; // 返回当前节点的IR代码
             }
-            // 如果第一个子节点是Identifier 说明是函数调用 直接将函数节点的ir_code赋给当前节点
+            // 如果第一个子节点是Identifier 说明是函数调用
             else if(node.children.size() > 1 && node.children[0]->name == "Identifier")
             {
-                ir_code = exp_gen_ir_code_from_child(node, type, 0); // 虽然不止一个子节点 但是函数总是第一个子节点 所以我照用
-                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
-                return ir_code; // 返回当前节点的IR代码
+                // 生成函数调用的IR代码
+                identifier* func_id = find_identifier_in_scope(node,node.children[0]->cact_code); // 在当前作用域中查找函数标识符
+                auto [reg_type, reg_align] = get_reg_type_and_align(func_id->func_return_type); // 获取寄存器类型和对齐方式
+                std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
+                // 如果函数不含有参数 则直接调用
+                if(node.children[2]->name != "function_real_params")
+                {
+                    ir_code = current_reg_name + " = call " + reg_type + " @" + func_id->name + "()\n"; // 生成函数调用的IR代码
+                    node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                    return ir_code; // 返回当前节点的IR代码
+                }
+                // 否则处理函数参数
+                {
+                    std::string call_ir_code = current_reg_name + " = call " + reg_type + " @" + func_id->name + "(";
+                    // 接下来,我们遍历function_real_params的子节点,每个找到的expression子节点对应一个函数实参
+                    // 我们进行这样的处理:对于每个expression子节点,我们先分配一个节点寄存器,然后计算其值并存入节点寄存器
+                    // 最后,我们将节点寄存器的值作为函数实参传入函数调用
+                    // 为了对称起见,我们的节点寄存器也存放指针,因此可能会多几次load和store指令
+                    std::vector<std::string> func_param_regs; // 用于存储函数实参的寄存器名称
+                    std::string func_params_ir_code = ""; // 用于存储函数实参的IR代码
+                    for(auto &child:node.children[2]->children) // 遍历function_real_params的子节点
+                    {
+                        if(child->name == "expression") // 如果子节点是expression
+                        {
+                            std::string child_type = get_arithmetic_expression_type(*child); // 获取子节点的基本类型
+                            std::string child_ir_code = calculate_expression_value(*child, child_type); // 计算子节点的值并生成IR代码
+                            std::string child_reg_name = "%" + std::to_string(child->node_index); // 子节点的临时寄存器名称
+                            auto [reg_type, reg_align] = get_reg_type_and_align(child_type); // 获取寄存器类型和对齐方式
+                            // 为每一个子节点再分配一个临时寄存器
+                            std::string child_reg_name_tmp = "%tmp_" + std::to_string(child->node_index) + "_to_" + std::to_string(node.node_index); // 临时寄存器名称
+                            // 将子节点的值存储到临时寄存器中
+                            std::string assign_ir_code = child_reg_name_tmp + " = load " + reg_type + ", ptr " + child_reg_name + reg_align + "\n"; // 从子节点的寄存器加载值到临时寄存器
+                            func_params_ir_code += child_ir_code + assign_ir_code; // 拼接IR代码
+                            // 将临时寄存器的名称添加到func_param_regs中
+                            func_param_regs.push_back(child_reg_name_tmp);
+                        }
+                    }
+                    // 将函数实参的寄存器名称拼接到函数调用的IR代码中
+                    // 这里我们期望func_param_regs中的每个寄存器都与func_id->func_params中的参数类型一一对应
+                    // 如果func_params中的某个参数是数组类型,则在LLVMIR中解释为ptr类型
+                    for(size_t i = 0; i < func_param_regs.size(); ++i)
+                    {
+                        if(i > 0) call_ir_code += ", "; // 如果不是第一个参数,则添加逗号分隔
+                        if(func_id->func_params[i].type == "int")
+                        {
+                            call_ir_code += "i32 "; // 如果参数类型是int,则添加i32
+                        }
+                        else if(func_id->func_params[i].type == "float")
+                        {
+                            call_ir_code += "float "; // 如果参数类型是float,则添加float
+                        }
+                        else if(func_id->func_params[i].type == "char")
+                        {
+                            call_ir_code += "i8 "; // 如果参数类型是char,则添加i8
+                        }
+                        else
+                        {
+                            call_ir_code += "ptr "; // 如果参数类型是指针,则添加ptr
+                        }
+                        call_ir_code += func_param_regs[i]; // 添加函数实参寄存器名称
+                    }
+                    call_ir_code += ")\n"; // 结束函数调用的IR代码
+                    ir_code = func_params_ir_code + call_ir_code; // 拼接IR代码
+                    node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                    return ir_code; // 返回当前节点的IR代码
+                }
             }
             // 其余情况下 说明该节点有两个子节点,即 (Plus | Minus | ExclamationMark) unary_expression
             else
@@ -1556,6 +1619,7 @@ namespace cplab_ir_generator
             }
             current_scope = current_scope->parent; // 否则回到父作用域继续查找
         }
-
+        // 如果在所有作用域中都没有找到标识符,则抛出异常
+        throw std::runtime_error("Identifier not found in scope: " + id_name);
     }
 }
