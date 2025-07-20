@@ -40,9 +40,17 @@ namespace cplab_ir_generator
             }
         }
         // 最后,如果当前节点是根节点,将其ir_code属性设置为所有子节点的ir_code拼接而成
+        // 此外还要事先声明6个标准库函数函数
         if (node.name == "compilation_unit") // 如果是根节点
         {
             std::string ir_code = "";
+            // 声明库函数
+            ir_code += "declare void @print_int(i32)\n";
+            ir_code += "declare void @print_float(float)\n";
+            ir_code += "declare void @print_char(i8)\n";
+            ir_code += "declare int @get_int()\n";
+            ir_code += "declare float @get_float()\n";
+            ir_code += "declare char @get_char()\n";
             for (auto &child : node.children)
             {
                 ir_code += child->ir_code; // 拼接子节点的IR代码
@@ -1580,6 +1588,8 @@ namespace cplab_ir_generator
             return {"i8", ", align 1"};
         } else if(type == "bool") {
             return {"i1", ", align 1"};
+        } else if(type == "void") {
+            return {"void", ""}; // void类型没有寄存器
         } else {
             throw std::runtime_error("Unsupported type: " + type);
         }
@@ -1945,7 +1955,11 @@ namespace cplab_ir_generator
         // 悬空表达式
         else if(node.children[0]->name == "expression")
         {
-            return ""; //对于悬空的表达式,我们也将其忽视
+            std::string ir_code = ""; // 用于存储当前节点的IR代码
+            std::string type = get_arithmetic_expression_type(*node.children[0]); // 获取表达式的类型
+            ir_code = exp_gen_ir_code_from_child(node, type, 0); // 生成表达式的IR代码
+            node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+            return ir_code; // 返回当前节点的IR代码
         }
         // while循环
         else if(node.children[0]->name == "While")

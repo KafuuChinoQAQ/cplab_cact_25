@@ -17,6 +17,99 @@ namespace cplab_variable_scope_generator
 
         scope_node* current_scope = &root_scope; // 初始化当前作用域为根节点
 
+        // 预先在全局作用域中添加6个标准库函数
+        {
+            identifier print_int, print_float, print_char, get_int, get_float, get_char;
+            // 添加print_int函数
+            print_int.id_index = id_index++;
+            print_int.kind = IdKind::Func;
+            print_int.func_return_type = "void";
+            print_int.name = "print_int";
+            print_int.type = "";
+            print_int.line_number = -1; // 行号为-1表示非当前文件中的标识符
+            print_int.func_params.clear();
+            // 添加一个int类型的标识符作为其参数
+            identifier int_param;
+            int_param.id_index = id_index++;
+            int_param.kind = IdKind::Param;
+            int_param.name = "external_func_print_int_param";
+            int_param.type = "int";
+            int_param.line_number = -1; // 行号为-1表示非当前文件中的标识符
+            print_int.func_params.push_back(int_param); // 添加参数到函数参数列表
+            print_int.is_global = true; // 标记为全局函数
+            current_scope->identifiers.push_back(print_int); // 将print_int添加到全局作用域的标识符列表中
+
+            // 添加print_float函数
+            print_float.id_index = id_index++;
+            print_float.kind = IdKind::Func;
+            print_float.func_return_type = "void";
+            print_float.name = "print_float";
+            print_float.type = "";
+            print_float.line_number = -1; // 行号为-1表示非当前文件中的标识符
+            print_float.func_params.clear();
+            // 添加一个float类型的标识符作为其参数
+            identifier float_param;
+            float_param.id_index = id_index++;
+            float_param.kind = IdKind::Param;
+            float_param.name = "external_func_print_float_param";
+            float_param.type = "float";
+            float_param.line_number = -1; // 行号为-1表示非当前文件中的标识符
+            print_float.func_params.push_back(float_param); // 添加参数到函数参数列表
+            print_float.is_global = true; // 标记为全局函数
+            current_scope->identifiers.push_back(print_float); // 将print_float添加到全局作用域的标识符列表中
+            
+            // 添加print_char函数
+            print_char.id_index = id_index++;
+            print_char.kind = IdKind::Func;
+            print_char.func_return_type = "void";
+            print_char.name = "print_char";
+            print_char.type = "";
+            print_char.line_number = -1; // 行号为-1表示非当前文件中的标识符
+            print_char.func_params.clear();
+            // 添加一个char类型的标识符作为其参数
+            identifier char_param;
+            char_param.id_index = id_index++;
+            char_param.kind = IdKind::Param;
+            char_param.name = "external_func_print_char_param";
+            char_param.type = "char";
+            char_param.line_number = -1; // 行号为-1表示非当前文件中的标识符
+            print_char.func_params.push_back(char_param); // 添加参数到函数参数列表
+            print_char.is_global = true; // 标记为全局函数
+            current_scope->identifiers.push_back(print_char); // 将print_char添加到全局作用域的标识符列表中
+
+            // 添加get_int函数
+            get_int.id_index = id_index++;
+            get_int.kind = IdKind::Func;
+            get_int.func_return_type = "int";
+            get_int.name = "get_int";
+            get_int.type = "";
+            get_int.line_number = -1; // 行号为-1表示非当前文件中的标识符
+            get_int.func_params.clear(); // 无参数
+            get_int.is_global = true; // 标记为全局函数
+            current_scope->identifiers.push_back(get_int); // 将get_int添加到全局作用域的标识符列表中
+
+            // 添加get_float函数
+            get_float.id_index = id_index++;
+            get_float.kind = IdKind::Func;
+            get_float.func_return_type = "float";
+            get_float.name = "get_float";
+            get_float.type = "";
+            get_float.line_number = -1; // 行号为-1表示非当前文件中的标识符
+            get_float.func_params.clear(); // 无参数
+            get_float.is_global = true; // 标记为全局函数
+            current_scope->identifiers.push_back(get_float); // 将get_float添加到全局作用域的标识符列表中
+
+            // 添加get_char函数
+            get_char.id_index = id_index++;
+            get_char.kind = IdKind::Func;
+            get_char.func_return_type = "char";
+            get_char.name = "get_char";
+            get_char.type = "";
+            get_char.line_number = -1; // 行号为-1表示非当前文件中的标识符
+            get_char.func_params.clear(); // 无参数
+            get_char.is_global = true; // 标记为全局函数
+            current_scope->identifiers.push_back(get_char); // 将get_char添加到全局作用域的标识符列表中
+        }
         // 递归处理AST节点
         for (auto &child : ast_node.children) {
             process_ast_node(*child,current_scope);
