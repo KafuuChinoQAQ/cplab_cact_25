@@ -23,5 +23,11 @@ namespace cplab_ir_generator
     std::string get_arithmetic_expression_type(ast_node &node);
     // 传入一个ast_node节点和一个标识符名称,递归向上查找并返回标识符指针的函数
     identifier* find_identifier_in_scope(ast_node &node, std::string id_name);
+    // 生成一个函数定义结点的相关代码
+    void ir_gen_func_definition(ast_node &node);
+    // 生成一个block结点的相关代码
+    std::string ir_gen_block(ast_node &node);
+    // 生成一个statement结点的相关代码
+    std::string ir_gen_statement(ast_node &node);
 }
 #endif // CPLAB_IR_GENERATOR_H

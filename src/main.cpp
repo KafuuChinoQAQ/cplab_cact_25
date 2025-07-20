@@ -110,7 +110,8 @@ int main(int argc, const char *argv[])
         scope_node scope_root = cplab_variable_scope_generator::variable_scope_generator(ast_root); // 调用作用域生成器函数
         std::cout << "作用域树已生成" << std::endl << std::endl; // 输出作用域树生成成功信息
         // 生成IR代码
-        cplab_ir_generator::ir_generator(ast_root); // 调用IR生成器函数
+        cplab_ir_generator::ir_gen_declaration(ast_root); // 先生成declaration相关结点的IR代码
+        cplab_ir_generator::ir_generator(ast_root); // 调用其余部分的IR生成器函数
 
         // 静态检查
 

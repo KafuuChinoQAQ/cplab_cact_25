@@ -7,9 +7,10 @@ namespace cplab_ir_generator
     // 总入口
     void ir_generator(ast_node &node)
     {
-        // 先生成declaration相关结点的IR代码
-        ir_gen_declaration(node);
+
         // 然后遍历所有节点,依次生成所有expression和condition结点的IR代码
+        // 注意 这里不包括函数实参内部的expression结点
+        // 因为函数实参的IR代码在函数调用时生成
         for (auto &child : node.children)
         {
             if (child->name == "condition")
@@ -23,10 +24,30 @@ namespace cplab_ir_generator
                 std::string type = get_arithmetic_expression_type(*child); // 获取算术表达式的类型
                 calculate_expression_value(*child,type); // 传入子节点的类型
             }
+            else if(child->name == "block")
+            {
+                // 生成block结点的IR代码
+                ir_gen_block(*child);
+            }
+            else if (child->name == "function_definition")
+            {
+                // 生成函数定义结点的IR代码
+                ir_gen_func_definition(*child);
+            }
             else
             {
                 ir_generator(*child); // 递归调用
             }
+        }
+        // 最后,如果当前节点是根节点,将其ir_code属性设置为所有子节点的ir_code拼接而成
+        if (node.name == "compilation_unit") // 如果是根节点
+        {
+            std::string ir_code = "";
+            for (auto &child : node.children)
+            {
+                ir_code += child->ir_code; // 拼接子节点的IR代码
+            }
+            node.ir_code = ir_code; // 设置根节点的IR代码
         }
     }
     
@@ -610,7 +631,7 @@ namespace cplab_ir_generator
     std::string calculate_expression_value(ast_node &node, std::string type)
     {
         // 将当前节点的name及type打印在屏幕上
-        printf("Calculating expression value for node %d: %s with type %s\n", node.node_index, node.name.c_str(), type.c_str());
+        // printf("Calculating expression value for node %d: %s with type %s\n", node.node_index, node.name.c_str(), type.c_str());
         auto [reg_type, reg_align] = get_reg_type_and_align(type);
         std::string ir_code = ""; // 用于存储当前节点的IR代码
         if(node.name == "expression")
@@ -999,11 +1020,11 @@ namespace cplab_ir_generator
                 {
                     if(op == "+") // 如果是加法操作符
                     {
-                        cmp_inst = tmp_reg_name + "_cmp = add i32 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成加法指令
+                        cmp_inst = tmp_reg_name + " = add i32 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成加法指令
                     }
                     else if(op == "-") // 如果是减法操作符
                     {
-                        cmp_inst = tmp_reg_name + "_cmp = sub i32 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成减法指令
+                        cmp_inst = tmp_reg_name + " = sub i32 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成减法指令
                     }
                     else
                     {
@@ -1014,11 +1035,11 @@ namespace cplab_ir_generator
                 {
                     if(op == "+") // 如果是加法操作符
                     {
-                        cmp_inst = tmp_reg_name + "_cmp = fadd float " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成加法指令
+                        cmp_inst = tmp_reg_name + " = fadd float " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成加法指令
                     }
                     else if(op == "-") // 如果是减法操作符
                     {
-                        cmp_inst = tmp_reg_name + "_cmp = fsub float " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成减法指令
+                        cmp_inst = tmp_reg_name + " = fsub float " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成减法指令
                     }
                     else
                     {
@@ -1029,11 +1050,11 @@ namespace cplab_ir_generator
                 {
                     if(op == "+") // 如果是加法操作符
                     {
-                        cmp_inst = tmp_reg_name + "_cmp = add i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成加法指令
+                        cmp_inst = tmp_reg_name + " = add i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成加法指令
                     }
                     else if(op == "-") // 如果是减法操作符
                     {
-                        cmp_inst = tmp_reg_name + "_cmp = sub i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成减法指令
+                        cmp_inst = tmp_reg_name + " = sub i8 " + tmp_reg_name + "_l, " + tmp_reg_name + "_r\n"; // 生成减法指令
                     }
                     else
                     {
@@ -1048,15 +1069,15 @@ namespace cplab_ir_generator
                 std::string store_inst;
                 if(type == "int")
                 {
-                    store_inst = "store i32 " + tmp_reg_name + "_cmp, ptr " + current_reg_name + ", align 4\n"; // 将计算结果存储到当前节点的寄存器
+                    store_inst = "store i32 " + tmp_reg_name + ", ptr " + current_reg_name + ", align 4\n"; // 将计算结果存储到当前节点的寄存器
                 }
                 else if(type == "float")
                 {
-                    store_inst = "store float " + tmp_reg_name + "_cmp, ptr " + current_reg_name + ", align 4\n"; // 将计算结果存储到当前节点的寄存器
+                    store_inst = "store float " + tmp_reg_name + ", ptr " + current_reg_name + ", align 4\n"; // 将计算结果存储到当前节点的寄存器
                 }
                 else if(type == "char")
                 {
-                    store_inst = "store i8 " + tmp_reg_name + "_cmp, ptr " + current_reg_name + ", align 1\n"; // 将计算结果存储到当前节点的寄存器
+                    store_inst = "store i8 " + tmp_reg_name + ", ptr " + current_reg_name + ", align 1\n"; // 将计算结果存储到当前节点的寄存器
                 }
                 else
                 {
@@ -1463,7 +1484,7 @@ namespace cplab_ir_generator
                 }
                 else
                 {
-                    ptr_ir_code = tmp_reg_name_2 + " = getelementptr " + reg_type + ", ptr @id_" + std::to_string(id->id_index) + ", i32 " + std::to_string(true_index) + "\n"; // 从全局标识符的寄存器加载值到临时寄存器
+                    ptr_ir_code = tmp_reg_name_1 + " = getelementptr " + reg_type + ", ptr @id_" + std::to_string(id->id_index) + ", i32 " + std::to_string(true_index) + "\n"; // 从全局标识符的寄存器加载值到临时寄存器
                 }
                 // 将该地址的值加载到临时寄存器2
                 std::string assign_ir_code;
@@ -1476,6 +1497,49 @@ namespace cplab_ir_generator
             else
             {
                 throw std::runtime_error("Unsupported left_value structure");
+            }
+        }
+        else if(node.name == "number")
+        {
+            if(type == "int")
+            {
+                // 先获取number节点的值
+                int value = std::get<int>(calculate_number_value(node));
+                // 生成IR代码
+                std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的寄存器名称
+                // 将整数值存储到当前节点的临时寄存器
+                std::string assign_ir_code = current_reg_name + " = alloca i32, align 4\n"; // 分配一个整数类型的临时寄存器
+                std::string store_ir_code = "store i32 " + std::to_string(value) + ", ptr " + current_reg_name + ", align 4\n"; // 将整数值存储到临时寄存器
+                node.ir_code = assign_ir_code + store_ir_code; // 拼接IR代码
+                return node.ir_code; // 返回当前节点的IR代码
+            }
+            else if(type == "float")
+            {
+                // 先获取number节点的值
+                float value = std::get<float>(calculate_number_value(node));
+                // 生成IR代码
+                std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的寄存器名称
+                // 将浮点数值存储到当前节点的临时寄存器
+                std::string assign_ir_code = current_reg_name + " = alloca float, align 4\n"; // 分配一个浮点数类型的临时寄存器
+                std::string store_ir_code = "store float " + std::to_string(value) + ", ptr " + current_reg_name + ", align 4\n"; // 将浮点数值存储到临时寄存器
+                node.ir_code = assign_ir_code + store_ir_code; // 拼接IR代码
+                return node.ir_code; // 返回当前节点的IR代码
+            }
+            else if(type == "char")
+            {
+                // 先获取number节点的值
+                char value = std::get<char>(calculate_number_value(node));
+                // 生成IR代码
+                std::string current_reg_name = "%" + std::to_string(node.node_index); // 当前节点的寄存器名称
+                // 将字符值存储到当前节点的临时寄存器
+                std::string assign_ir_code = current_reg_name + " = alloca i8, align 1\n"; // 分配一个字符类型的临时寄存器
+                std::string store_ir_code = "store i8 " + std::to_string(static_cast<int>(value)) + ", ptr " + current_reg_name + ", align 1\n"; // 将字符值存储到临时寄存器
+                node.ir_code = assign_ir_code + store_ir_code; // 拼接IR代码
+                return node.ir_code; // 返回当前节点的IR代码
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported type in number: " + type);
             }
         }
         else
@@ -1621,5 +1685,360 @@ namespace cplab_ir_generator
         }
         // 如果在所有作用域中都没有找到标识符,则抛出异常
         throw std::runtime_error("Identifier not found in scope: " + id_name);
+    }
+
+    // 生成一个函数定义结点的相关代码
+    // 传入AST根节点给该函数,然后递归地遍历AST树,当找到一个函数定义时为对应的结点生成ir_code
+    void ir_gen_func_definition(ast_node &node)
+    {
+        if(node.name == "function_definition")
+        {
+            // 先获取node对应的函数标识符
+            identifier* func_id = find_identifier_in_scope(node, node.children[1]->cact_code); // 在当前作用域中查找函数标识符
+            auto [func_return_reg_type, func_return_reg_align] = get_reg_type_and_align(func_id->func_return_type); // 获取寄存器类型和对齐方式
+            // 先完成IR的第一部分
+            std::string ir_code = "define " + func_return_reg_type + " @" + func_id->name + "(";
+            // 接下来根据函数的每个参数,填入IR代码
+            for(size_t i = 0; i < func_id->func_params.size(); ++i)
+            {
+                if(i > 0) ir_code += ", "; // 如果不是第一个参数,则添加逗号分隔
+                // 处理基本类型的参数
+                if(func_id->func_params[i].type == "int" || func_id->func_params[i].type == "float" || func_id->func_params[i].type == "char")
+                {
+                    auto [param_reg_type, param_reg_align] = get_reg_type_and_align(func_id->func_params[i].type); // 获取参数寄存器类型和对齐方式
+                    ir_code += param_reg_type + " %id_" + std::to_string(func_id->func_params[i].id_index); // 添加参数寄存器名称
+                }
+                else
+                {
+                    // 如果是数组类型,则在LLVMIR中解释为ptr类型
+                    ir_code += "ptr %id_" + std::to_string(func_id->func_params[i].id_index); // 添加参数寄存器名称
+                }
+            }
+            ir_code += ")\n"; // 结束函数定义的IR代码
+            // 接下来,我们需要处理函数体 由于函数体总是被一个block包围,且该block是函数定义的最后一个子节点 我们直接计算block的IR代码并将其添加到函数定义之后
+            // 另外别忘了花括号
+            std::string block_ir_code = ir_gen_block(*node.children.back()); // 生成block的IR代码
+            ir_code += "{\n" + block_ir_code + "\n}\n"; // 将block的IR代码添加到函数定义之后
+            node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+        }
+        else
+        {
+            // 如果不是函数定义结点,则递归处理子节点
+            for (auto &child : node.children)
+            {
+                ir_gen_func_definition(*child); // 递归调用
+            }
+        }
+    }
+
+    // 生成一个block及其内部结点的相关代码
+    std::string ir_gen_block(ast_node &node)
+    {
+        std::string ir_code = ""; // 用于存储当前节点的IR代码
+        // 遍历block的子节点
+        for(auto &child : node.children)
+        {
+            if(child->name == "LeftBrace" || child->name == "RightBrace")
+            {
+                continue; // 跳过左大括号和右大括号
+            }
+            else
+            {
+                if(child->ir_code.empty()) // 先生成子节点block_item内部的代码
+                {
+                    for(auto &grandchild : child->children) // 遍历block_item的子节点,其只有可能是declaration或statement
+                    {
+                        if(grandchild->name == "declaration")
+                        {
+                            child->ir_code = grandchild->ir_code; // 如果是declaration,则直接使用其IR代码
+                        }
+                        else if(grandchild->name == "statement")
+                        {
+                            child->ir_code = ir_gen_statement(*grandchild); // 如果是statement,则调用ir_gen_statement生成IR代码
+                        }
+                        else
+                        {
+                            throw std::runtime_error("Unsupported block_item type: " + grandchild->name);
+                        }
+                    }
+                }
+                ir_code += child->ir_code; // 将子节点的IR代码添加到当前节点的IR代码中
+            }
+        }
+        node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+        return ir_code; // 返回当前节点的IR代码
+    }
+
+    // 生成一个statement结点的相关代码
+    std::string ir_gen_statement(ast_node &node)
+    {
+        //std::cout << "Generating IR for statement: " << node.node_index << std::endl; // 输出当前生成的statement节点的索引和名称
+        // if语句
+        if(node.children[0]->name == "If" && node.children.size() == 5)
+        {
+            std::string ir_code = ""; // 用于存储当前节点的IR代码
+            std::string condition_ir_code = calculate_expression_value(*node.children[2], "bool"); // 生成条件表达式的IR代码
+            std::string then_statement_ir_code = ir_gen_statement(*node.children[4]); // 生成then块的IR代码
+            // 生成跳转代码 为此我们需要先获得条件表达式节点的寄存器名称
+            std::string condition_reg_name = "%" + std::to_string(node.children[2]->node_index); // 条件表达式的寄存器名称
+            std::string then_label = std::to_string(node.node_index) + "_then"; // then块的标签
+            std::string else_label = std::to_string(node.node_index) + "_else"; // else块的标签
+            std::string br_ir_code = "br i1 " + condition_reg_name + ", label %" + then_label + ", label %" + else_label + "\n"; // 生成条件跳转代码
+            ir_code += condition_ir_code + br_ir_code; // 拼接条件表达式的IR代码和跳转代码
+            ir_code += "\n" + then_label + ":\n" + then_statement_ir_code; // 添加then块的IR代码
+            ir_code += "\n" + else_label + ":\n"; // 添加else块的标签
+            node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+            return ir_code; // 返回当前节点的IR代码
+        }
+        // if-else语句
+        else if(node.children[0]->name == "If" && node.children.size() == 7)
+        {
+            std::string ir_code = ""; // 用于存储当前节点的IR代码
+            std::string condition_ir_code = calculate_expression_value(*node.children[2], "bool"); // 生成条件表达式的IR代码
+            std::string then_statement_ir_code = ir_gen_statement(*node.children[4]); // 生成then块的IR代码
+            std::string else_statement_ir_code = ir_gen_statement(*node.children[6]); // 生成else块的IR代码
+            // 生成跳转代码 为此我们需要先获得条件表达式节点的寄存器名称
+            std::string condition_reg_name = "%" + std::to_string(node.children[2]->node_index); // 条件表达式的寄存器名称
+            std::string then_label = std::to_string(node.node_index) + "_then"; // then块的标签
+            std::string else_label = std::to_string(node.node_index) + "_else"; // else块的标签
+            std::string end_label = std::to_string(node.node_index) + "_end"; // end块的标签
+            std::string br_ir_code = "br i1 " + condition_reg_name + ", label %" + then_label + ", label %" + else_label + "\n"; // 生成条件跳转代码
+            ir_code += condition_ir_code + br_ir_code; // 拼接条件表达式的IR代码和跳转代码
+            ir_code += "\n" + then_label + ":\n" + then_statement_ir_code; // 添加then块的IR代码
+            ir_code += "br label %" + end_label + "\n"; // 添加跳转到end块的代码
+            ir_code += "\n" + else_label + ":\n" + else_statement_ir_code; // 添加else块的IR代码
+            ir_code += "br label %" + end_label + "\n"; // 添加跳转到end块的代码
+            ir_code += "\n" + end_label + ":\n"; // 添加end块的标签
+            node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+            return ir_code; // 返回当前节点的IR代码
+        }
+        // block
+        else if(node.children[0]->name == "block")
+        {
+            // 直接调用ir_gen_block生成block的IR代码
+            std::string ir_code = ""; // 用于存储当前节点的IR代码
+            ir_code = ir_gen_block(*node.children[0]); // 生成block的IR代码
+            node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+            return ir_code; // 返回当前节点的IR代码
+        }
+        // 赋值语句
+        else if(node.children[0]->name == "left_value")
+        {
+            std::string ir_code = ""; // 用于存储当前节点的IR代码
+            // 先生成等号右侧的表达式的IR代码
+            std::string type = get_arithmetic_expression_type(*node.children[2]); // 获取等号右侧表达式的类型
+            std::string expression_ir_code = calculate_expression_value(*node.children[2], type); // 生成等号右侧表达式的IR代码
+            // 将其赋给等号左侧的left_value
+            std::string expression_reg_name = "%" + std::to_string(node.children[2]->node_index); // 表达式的寄存器名称
+            // 先确定left_value是否为数组 如果不是数组,则直接将寄存器中的值赋给left_value的寄存器
+            if(node.children[0]->children.size() == 1 && node.children[0]->children[0]->name == "Identifier")
+            {
+                // 如果left_value只有一个子节点,则说明是标识符
+                identifier* id = find_identifier_in_scope(*node.children[0]->children[0], node.children[0]->children[0]->cact_code); // 查找标识符节点
+                std::string left_value_reg_name = "%id_" + std::to_string(id->id_index); // left_value的寄存器名称
+                // 读出表达式的值
+                auto [reg_type, reg_align] = get_reg_type_and_align(type); // 获取寄存器类型和对齐方式
+                std::string tmp_reg_name = "%tmp_" + std::to_string(node.node_index); // 临时寄存器名称
+                std::string assign_ir_code_1 = tmp_reg_name + " = load " + reg_type + ", ptr " + expression_reg_name + reg_align + "\n"; // 从表达式的寄存器加载值到临时寄存器
+                // 将临时寄存器的值存储到left_value的寄存器
+                std::string assign_ir_code_2;
+                if(id->is_global == false)
+                {
+                    assign_ir_code_2 = "store " + reg_type + " " + tmp_reg_name + ", ptr " + left_value_reg_name + reg_align + "\n"; // 将临时寄存器的值存储到局部标识符的寄存器
+                }
+                else
+                {
+                    assign_ir_code_2 = "store " + reg_type + " " + tmp_reg_name + ", ptr @id_" + std::to_string(id->id_index) + reg_align + "\n"; // 将临时寄存器的值存储到全局标识符的寄存器
+                }
+                ir_code = expression_ir_code + assign_ir_code_1 + assign_ir_code_2; // 拼接IR代码
+                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                return ir_code; // 返回当前节点的IR代码
+            }
+            else if(node.children[0]->children.size() > 1)
+            {
+                auto [reg_type, reg_align] = get_reg_type_and_align(type); // 获取寄存器类型和对齐方式
+                // 如果有多个子节点,说明是数组访问
+                identifier* id = find_identifier_in_scope(*node.children[0], node.children[0]->cact_code); // 查找标识符节点
+                // 首先获取left_value节点的cact_code 并从中分离出数组名和索引
+                std::string array_name = node.children[0]->cact_code; // 数组名 如"array"
+                // 将cact_code减去开头的标识符部分得到剩余的索引部分 如"[2][3]""
+                std::string index_string = node.cact_code.substr(array_name.length());
+                // 直接将多维数组当成一维来做 在取数组 int a[n1][n2][n3]...[nk] 的 a[i1][i2][i3]...[ik] 的值时
+                // 我们将其看成一维数组 a[i1*n2*n3*...*nk + i2*n3*...*nk + i3*...*nk + ... + ik] 的值
+                // 先根据Identifier的type来获取数组各维度的大小 例如当type="int[2][3][4]"时 各维度分别为 n1=2, n2=3, n3=4
+                // 如果n1不存在,即函数参数中数组的最外层维度被忽略,则将其置为0
+                std::vector<int> array_sizes; // 用于存储数组各维度的大小
+                std::string array_type = id->type; // 获取数组的类型
+                // 解析数组类型字符串,提取各维度大小
+                size_t pos = 0;
+                while ((pos = array_type.find('[')) != std::string::npos) 
+                {
+                    size_t end_pos = array_type.find(']', pos);
+                    if (end_pos == std::string::npos) 
+                    {
+                        throw std::runtime_error("Invalid array type format: " + array_type);
+                    }
+                    std::string size_str = array_type.substr(pos + 1, end_pos - pos - 1); // 提取维度大小
+                    if (size_str.empty()) 
+                    {
+                        array_sizes.push_back(0); // 如果没有指定大小,则默认为0
+                    } 
+                    else 
+                    {
+                        array_sizes.push_back(std::stoi(size_str)); // 将字符串转换为整数
+                    }
+                    array_type.erase(0, end_pos + 1); // 移除已处理的部分
+                }
+                // 类似的 从index_string中提取i1 i2 i3 ... ik的值
+                std::vector<int> indices; // 用于存储索引值
+                pos = 0;
+                while ((pos = index_string.find('[')) != std::string::npos) 
+                {
+                    size_t end_pos = index_string.find(']', pos);
+                    if (end_pos == std::string::npos) 
+                    {
+                        throw std::runtime_error("Invalid index format: " + index_string);
+                    }
+                    std::string index_str = index_string.substr(pos + 1, end_pos - pos - 1); // 提取索引值
+                    indices.push_back(std::stoi(index_str)); // 将字符串转换为整数
+                    index_string.erase(0, end_pos + 1); // 移除已处理的部分
+                }
+                int true_index = 0; // 用于存储计算后的真实索引
+                // 计算真实索引
+                for (size_t i = 0; i < indices.size(); ++i) 
+                {
+                    int multiplier = 1; // 用于计算当前维度的乘数
+                    for (size_t j = i + 1; j < array_sizes.size(); ++j) 
+                    {
+                        multiplier *= array_sizes[j]; // 计算当前维度的乘数
+                    }
+                    true_index += indices[i] * multiplier; // 累加到真实索引
+                }
+                // 现在我们已经得到了真实索引,接下来生成IR代码
+                std::string tmp_reg_name_1 = "%tmp_" + std::to_string(node.node_index) + "_1"; // 临时寄存器1
+
+                // 获取我们需要的值的地址并存入临时寄存器1
+                std::string ptr_ir_code;
+                if(id->is_global == false)
+                {
+                    ptr_ir_code = tmp_reg_name_1 + " = getelementptr " + reg_type + ", ptr %id_" + std::to_string(id->id_index) + ", i32 " + std::to_string(true_index) + "\n"; // 从局部标识符的寄存器加载值到临时寄存器
+                }
+                else
+                {
+                    ptr_ir_code = tmp_reg_name_1 + " = getelementptr " + reg_type + ", ptr @id_" + std::to_string(id->id_index) + ", i32 " + std::to_string(true_index) + "\n"; // 从全局标识符的寄存器加载值到临时寄存器
+                }
+                // 将表达式的值加载到临时寄存器2
+                std::string tmp_reg_name_2 = "%tmp_" + std::to_string(node.node_index) + "_2"; // 临时寄存器2
+                std::string assign_ir_code_1 = tmp_reg_name_2 + " = load " + reg_type + ", ptr " + expression_reg_name + reg_align + "\n"; // 从表达式的寄存器加载值到临时寄存器
+                // 将临时寄存器2的值存储到临时寄存器1的地址
+                std::string assign_ir_code_2 = "store " + reg_type + " " + tmp_reg_name_2 + ", ptr " + tmp_reg_name_1 + reg_align + "\n"; // 将临时寄存器的值存储到临时寄存器1的地址
+                ir_code = ptr_ir_code + assign_ir_code_1 + assign_ir_code_2; // 拼接IR代码
+                node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+                return ir_code; // 返回当前节点的IR代码
+            }
+        }
+        // 只有分号
+        else if(node.children[0]->name == "Semicolon")
+        {
+            return ""; // 如果是分号,则返回空字符串
+        }
+        // 悬空表达式
+        else if(node.children[0]->name == "expression")
+        {
+            return ""; //对于悬空的表达式,我们也将其忽视
+        }
+        // while循环
+        else if(node.children[0]->name == "While")
+        {
+            std::string ir_code = ""; // 用于存储当前节点的IR代码
+            std::string condition_ir_code = calculate_expression_value(*node.children[2], "bool"); // 生成条件表达式的IR代码
+            std::string body_ir_code = ir_gen_statement(*node.children[4]); // 生成循环体的IR代码
+            // 生成跳转代码 为此我们需要先获得条件表达式节点的寄存器名称
+            std::string condition_reg_name = "%" + std::to_string(node.children[2]->node_index); // 条件表达式的寄存器名称
+            std::string condition_label = std::to_string(node.node_index) + "_condition"; // 条件表达式的标签
+            std::string loop_start_label = std::to_string(node.node_index) + "_loop_start"; // 循环开始标签
+            std::string loop_end_label = std::to_string(node.node_index) + "_loop_end"; // 循环结束标签
+            std::string br_condition = "br label %" + condition_label + "\n"; // 跳转到条件表达式标签
+            std::string condition_ir_code_with_label = "\n" + condition_label + ":\n" + condition_ir_code; // 条件表达式的IR代码
+            std::string br_condition_true = "br i1 " + condition_reg_name + ", label %" + loop_start_label + ", label %" + loop_end_label + "\n"; // 条件跳转代码
+            std::string loop_start_ir_code = "\n" + loop_start_label + ":\n" + body_ir_code; // 循环体的IR代码
+            std::string br_loop_start = "br label %" + condition_label + "\n"; // 跳转回条件表达式的代码
+            std::string loop_end_ir_code = "\n" + loop_end_label + ":\n"; // 循环结束标签的IR代码
+            // 拼接所有IR代码
+            ir_code = br_condition + condition_ir_code_with_label + br_condition_true + loop_start_ir_code + br_loop_start + loop_end_ir_code; // 拼接IR代码
+            node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+            return ir_code; // 返回当前节点的IR代码
+        }
+        // break语句
+        else if(node.children[0]->name == "Break")
+        {
+            std::string ir_code = ""; // 用于存储当前节点的IR代码
+            // 沿着ast向上查找直到找到最近的while循环节点,然后跳转到其结束标签
+            ast_node* current_node = &node; // 从当前节点开始查找
+            while(current_node != nullptr)
+            {
+                if(current_node->children.size() > 0 && current_node->children[0]->name == "While")
+                {
+                    // 找到了最近的while循环节点
+                    std::string loop_end_label = std::to_string(current_node->node_index) + "_loop_end"; // 循环结束标签
+                    ir_code = "br label %" + loop_end_label + "\n"; // 生成跳转到循环结束标签的代码
+                    break; // 跳出循环
+                }
+                current_node = current_node->parent; // 向上查找父节点
+            }
+            if(ir_code.empty())
+            {
+                throw std::runtime_error("Break statement not inside a loop");
+            }
+            node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+            return ir_code; // 返回当前节点的IR代码
+        }
+        // continue语句
+        else if(node.children[0]->name == "Continue")
+        {
+            std::string ir_code = ""; // 用于存储当前节点的IR代码
+            // 沿着ast向上查找直到找到最近的while循环节点,然后跳转到其条件标签
+            ast_node* current_node = &node; // 从当前节点开始查找
+            while(current_node != nullptr)
+            {
+                if(current_node->children.size() > 0 && current_node->children[0]->name == "While")
+                {
+                    // 找到了最近的while循环节点
+                    std::string condition_label = std::to_string(current_node->node_index) + "_condition"; // 条件表达式的标签
+                    ir_code = "br label %" + condition_label + "\n"; // 生成跳转到条件表达式标签的代码
+                    break; // 跳出循环
+                }
+                current_node = current_node->parent; // 向上查找父节点
+            }
+            if(ir_code.empty())
+            {
+                throw std::runtime_error("Continue statement not inside a loop");
+            }
+            node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+            return ir_code; // 返回当前节点的IR代码
+        }
+        // return语句
+        else if(node.children[0]->name == "Return")
+        {
+            std::string ir_code = ""; // 用于存储当前节点的IR代码
+            if(node.children.size() == 3) // 如果有返回值
+            {
+                std::string type = get_arithmetic_expression_type(*node.children[1]); // 获取返回值的类型
+                std::string return_value_ir_code = calculate_expression_value(*node.children[1], type); // 生成返回值的IR代码
+                std::string return_reg_name = "%" + std::to_string(node.children[1]->node_index); // 返回值的寄存器名称
+                auto [reg_type, reg_align] = get_reg_type_and_align(type); // 获取寄存器类型和对齐方式
+                ir_code = return_value_ir_code + "ret " + reg_type + " " + return_reg_name + reg_align + "\n"; // 拼接返回值的IR代码
+            }
+            else // 如果没有返回值
+            {
+                ir_code = "ret void\n"; // 返回void类型
+            }
+            node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
+            return ir_code; // 返回当前节点的IR代码
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported statement type: " + node.children[0]->name);
+        }
     }
 }
