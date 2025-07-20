@@ -526,7 +526,19 @@ namespace cplab_ir_generator
         std::string value_str = node.cact_code; // 获取节点的cact代码片段
         if(node.children[0]->name == "IntegerConstant") 
         {
-            return std::stoi(value_str); // 直接转换为整数
+            // 支持十六进制、八进制和十进制
+            int result;
+            if (value_str.length() > 2 && (value_str.substr(0, 2) == "0x" || value_str.substr(0, 2) == "0X")) {
+                // 十六进制
+                result = std::stoi(value_str, nullptr, 16);
+            } else if (value_str.length() > 1 && value_str[0] == '0' && value_str != "0") {
+                // 八进制
+                result = std::stoi(value_str, nullptr, 8);
+            } else {
+                // 十进制
+                result = std::stoi(value_str, nullptr, 10);
+            }
+            return result;
         } 
         else if(node.children[0]->name == "FloatConstant") 
         {

@@ -1,4 +1,4 @@
-#!/bin/b,sh
+#!/bin/bash
 
 # 运行可执行文件
 ./test114
