@@ -4,7 +4,7 @@ if [ -f test114 ]; then
 fi
 
 # 编译 LLVM IR 文件为可执行文件
-clang test.ll mylib.o -o test114
+clang test.ll ./src/mylib.o -o test114
 
 # 运行可执行文件
 ./test114

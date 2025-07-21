@@ -1,9 +1,16 @@
 build
 .vscode
 deps
-test
 output
 test1.c
 test1.ll
 test.ll
 test114
+dominator-tree.log
+liveness-analysis.log
+loop-analysis.log
+module-builder.log
+pseudo-inst-translator.log
+useDef.log
+test.s
+test.asm

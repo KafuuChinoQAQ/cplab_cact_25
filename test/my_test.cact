@@ -1,0 +1,6 @@
+//test rem
+int main(){
+    int a;
+    a = 11;
+    return a % 3;
+}
