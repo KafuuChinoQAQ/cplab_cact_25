@@ -127,7 +127,14 @@ int main(int argc, const char *argv[])
         std::ofstream outfile_3(output_filepath, std::ios::app); // 以追加模式输出到文件
         outfile_3 << std::endl << "Abstract Syntax Tree (AST):" << std::endl; // 输出AST标题
         cplab_ast_generator::ast_printer(ast_root, outfile_3); // 调用AST打印函数 
-        outfile_3.close(); // 关闭输出文件      
+        outfile_3.close(); // 关闭输出文件
+        
+        // 将AST根节点的IR代码覆盖输出到test.ll文件中
+        std::ofstream outfile_4("test.ll"); // 打开test.ll文件
+        outfile_4 << ast_root.ir_code; // 将AST根节点的IR代码写入文件
+        outfile_4.close(); // 关闭输出文件
+        std::cout << "IR代码已输出到test.ll" << std::endl << std::endl; // 输出IR代码成功信息
+        
         return 0;
     }
     catch (const std::exception &e) // 捕获异常

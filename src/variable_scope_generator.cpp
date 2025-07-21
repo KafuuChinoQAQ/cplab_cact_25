@@ -246,6 +246,7 @@ namespace cplab_variable_scope_generator
                     param_id.line_number = param_node->node_index; // 设置参数所在的行号,用于错误提示和静态检查
                     param_id.name = param_node->children[1]->cact_code; // 获取参数名称,源自第二个子节点Identifier
                     param_id.func_return_type = ""; // func_return_type字段不使用
+                    param_id.is_global = false; // 函数参数不是全局变量
                     param_id.func_params.clear(); // 清空函数参数列表
                     std::string param_basic_type = param_node->children[0]->cact_code; // 获取参数的基本类型
                     // 为这个参数的类型添加上可能存在的数组后缀

@@ -48,9 +48,9 @@ namespace cplab_ir_generator
             ir_code += "declare void @print_int(i32)\n";
             ir_code += "declare void @print_float(float)\n";
             ir_code += "declare void @print_char(i8)\n";
-            ir_code += "declare int @get_int()\n";
+            ir_code += "declare i32 @get_int()\n";
             ir_code += "declare float @get_float()\n";
-            ir_code += "declare char @get_char()\n";
+            ir_code += "declare i8 @get_char()\n";
             for (auto &child : node.children)
             {
                 ir_code += child->ir_code; // 拼接子节点的IR代码
@@ -651,7 +651,7 @@ namespace cplab_ir_generator
     std::string calculate_expression_value(ast_node &node, std::string type)
     {
         // 将当前节点的name及type打印在屏幕上
-        // printf("Calculating expression value for node %d: %s with type %s\n", node.node_index, node.name.c_str(), type.c_str());
+        // printf("Calculating expression for node %d: %s with type %s\n", node.node_index, node.name.c_str(), type.c_str());
         auto [reg_type, reg_align] = get_reg_type_and_align(type);
         std::string ir_code = ""; // 用于存储当前节点的IR代码
         if(node.name == "expression")
@@ -812,7 +812,7 @@ namespace cplab_ir_generator
         {
             // 对于relational_expression节点 我们需要先获取其additive_expression子节点的数据类型,以便于求子节点的ir_code
             // 该节点中存储的指针有多种情况
-            // 对于形如"a<b"的结点,我们存储bool类型的指针(即i1) 同时其两个relational_expression子节点a和b均存储int类型
+            // 对于形如"a<b"的结点,我们存储bool类型(即i1) 同时其两个relational_expression子节点a和b均存储int类型
             // 如果是单独的一个"a"节点 我们将这里面存储的int类型转成bool类型后存储
             if(node.children.size() == 1 && node.children[0]->name == "additive_expression" && node.parent != nullptr && node.parent->name != "relational_expression")
             {
@@ -1109,13 +1109,25 @@ namespace cplab_ir_generator
                 // 如果函数不含有参数 则直接调用
                 if(node.children[2]->name != "function_real_params")
                 {
+                    if(reg_type == "void"){ // 如果函数返回类型是void
+                        ir_code = "call void @" + func_id->name + "()\n"; // 生成函数调用的IR代码
+                    }
+                    else{ // 如果函数返回类型不是void
+                        ir_code = current_reg_name + " = call " + reg_type + " @" + func_id->name + "()\n"; // 生成函数调用的IR代码
+                    }
                     ir_code = current_reg_name + " = call " + reg_type + " @" + func_id->name + "()\n"; // 生成函数调用的IR代码
                     node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
                     return ir_code; // 返回当前节点的IR代码
                 }
                 // 否则处理函数参数
                 {
-                    std::string call_ir_code = current_reg_name + " = call " + reg_type + " @" + func_id->name + "(";
+                    std::string call_ir_code;
+                    if(reg_type == "void"){ // 如果函数返回类型是void
+                        call_ir_code = "call void @" + func_id->name + "(";
+                    }
+                    else{
+                        call_ir_code = current_reg_name + " = call " + reg_type + " @" + func_id->name + "(";
+                    }
                     // 接下来,我们遍历function_real_params的子节点,每个找到的expression子节点对应一个函数实参
                     // 直接使用expression子节点的值寄存器作为函数参数
                     std::vector<std::string> func_param_regs; // 用于存储函数实参的寄存器名称
@@ -1203,7 +1215,7 @@ namespace cplab_ir_generator
                     node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
                     return ir_code; // 返回当前节点的IR代码
                 }
-                // 如果op是"!" 那么我们默认子节点的数据类型是int 而当前节点的数据类型为bool
+                // 如果op是"!" 那么我们默认子节点的数据类型是int 而当前节点的数据类型也设定为int
                 // 直接使用子节点的值寄存器进行比较
                 else if(op == "!")
                 {
@@ -1213,8 +1225,10 @@ namespace cplab_ir_generator
                     std::string child_reg_name = "%reg" + std::to_string(node.children[1]->node_index); // 子节点的临时寄存器名称
                     std::string current_reg_name = "%reg" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
                     // 判断子节点的值是否为0，如果是0则为true,否则为false
-                    std::string cmp_inst = current_reg_name + " = icmp eq i32 " + child_reg_name + ", 0\n";
-                    ir_code = ir_code_from_child + cmp_inst; // 拼接IR代码
+                    std::string cmp_inst = current_reg_name + "_i1 = icmp eq i32 " + child_reg_name + ", 0\n";
+                    // 将i1类型拓展为i32类型
+                    std::string extend_inst = current_reg_name + " = zext i1 " + current_reg_name + "_i1 to i32\n"; // 将i1类型拓展为i32类型
+                    ir_code = ir_code_from_child + cmp_inst + extend_inst; // 拼接IR代码
                     node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
                     return ir_code; // 返回当前节点的IR代码
                 }
@@ -1260,7 +1274,15 @@ namespace cplab_ir_generator
                 std::string assign_ir_code;
                 if(id->is_global == false)
                 {
+                    // 如果这个id是函数参数,那么直接赋值,而不是用load指令
+                    if(id->kind == IdKind::Param)
+                    {
+                        assign_ir_code = current_reg_name + " = add " + reg_type + " 0, %id_" + std::to_string(id->id_index) + "\n"; // 从局部标识符的寄存器加载值
+                    }
+                    else
+                    {
                     assign_ir_code = current_reg_name + " = load " + reg_type + ", ptr %id_" + std::to_string(id->id_index) + reg_align + "\n"; // 从局部标识符的寄存器加载值
+                    }
                 }
                 else
                 {
@@ -1418,6 +1440,8 @@ namespace cplab_ir_generator
             assign_ir_code += "i8 0, " + child_reg_name + "\n";
         } else if(type == "bool") {
             assign_ir_code = current_reg_name + " = or i1 false, " + child_reg_name + "\n";
+        } else if(type == "void") {
+            assign_ir_code = ""; // void类型不需要被转存
         } else {
             throw std::runtime_error("Unsupported type in exp_gen_ir_code_from_child: " + type);
         }
@@ -1640,8 +1664,8 @@ namespace cplab_ir_generator
             std::string then_statement_ir_code = ir_gen_statement(*node.children[4]); // 生成then块的IR代码
             // 生成跳转代码 为此我们需要先获得条件表达式节点的寄存器名称
             std::string condition_reg_name = "%reg" + std::to_string(node.children[2]->node_index); // 条件表达式的寄存器名称
-            std::string then_label = std::to_string(node.node_index) + "_then"; // then块的标签
-            std::string else_label = std::to_string(node.node_index) + "_else"; // else块的标签
+            std::string then_label = "label_" + std::to_string(node.node_index) + "_then"; // then块的标签
+            std::string else_label = "label_" + std::to_string(node.node_index) + "_else"; // else块的标签
             std::string br_ir_code = "br i1 " + condition_reg_name + ", label %" + then_label + ", label %" + else_label + "\n"; // 生成条件跳转代码
             ir_code += condition_ir_code + br_ir_code; // 拼接条件表达式的IR代码和跳转代码
             ir_code += "\n" + then_label + ":\n" + then_statement_ir_code; // 添加then块的IR代码
@@ -1658,9 +1682,9 @@ namespace cplab_ir_generator
             std::string else_statement_ir_code = ir_gen_statement(*node.children[6]); // 生成else块的IR代码
             // 生成跳转代码 为此我们需要先获得条件表达式节点的寄存器名称
             std::string condition_reg_name = "%reg" + std::to_string(node.children[2]->node_index); // 条件表达式的寄存器名称
-            std::string then_label = std::to_string(node.node_index) + "_then"; // then块的标签
-            std::string else_label = std::to_string(node.node_index) + "_else"; // else块的标签
-            std::string end_label = std::to_string(node.node_index) + "_end"; // end块的标签
+            std::string then_label = "label_" + std::to_string(node.node_index) + "_then"; // then块的标签
+            std::string else_label = "label_" + std::to_string(node.node_index) + "_else"; // else块的标签
+            std::string end_label = "label_" + std::to_string(node.node_index) + "_end"; // end块的标签
             std::string br_ir_code = "br i1 " + condition_reg_name + ", label %" + then_label + ", label %" + else_label + "\n"; // 生成条件跳转代码
             ir_code += condition_ir_code + br_ir_code; // 拼接条件表达式的IR代码和跳转代码
             ir_code += "\n" + then_label + ":\n" + then_statement_ir_code; // 添加then块的IR代码
@@ -1813,9 +1837,9 @@ namespace cplab_ir_generator
             std::string body_ir_code = ir_gen_statement(*node.children[4]); // 生成循环体的IR代码
             // 生成跳转代码 为此我们需要先获得条件表达式节点的寄存器名称
             std::string condition_reg_name = "%reg" + std::to_string(node.children[2]->node_index); // 条件表达式的寄存器名称
-            std::string condition_label = std::to_string(node.node_index) + "_condition"; // 条件表达式的标签
-            std::string loop_start_label = std::to_string(node.node_index) + "_loop_start"; // 循环开始标签
-            std::string loop_end_label = std::to_string(node.node_index) + "_loop_end"; // 循环结束标签
+            std::string condition_label = "label_" + std::to_string(node.node_index) + "_condition"; // 条件表达式的标签
+            std::string loop_start_label = "label_" + std::to_string(node.node_index) + "_loop_start"; // 循环开始标签
+            std::string loop_end_label = "label_" + std::to_string(node.node_index) + "_loop_end"; // 循环结束标签
             std::string br_condition = "br label %" + condition_label + "\n"; // 跳转到条件表达式标签
             std::string condition_ir_code_with_label = "\n" + condition_label + ":\n" + condition_ir_code; // 条件表达式的IR代码
             std::string br_condition_true = "br i1 " + condition_reg_name + ", label %" + loop_start_label + ", label %" + loop_end_label + "\n"; // 条件跳转代码
