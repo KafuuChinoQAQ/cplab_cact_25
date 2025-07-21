@@ -679,18 +679,37 @@ namespace cplab_ir_generator
                 return ir_code; // 返回当前节点的IR代码
             }
             // 否则,说明该节点有三个子节点,即 logical_or_expression "||" logical_and_expression
+            // 实现短路机制：如果左侧为真，则不计算右侧
             else
             {
-                // 分别计算前后两个逻辑表达式的值
-                std::string left_ir_code = calculate_expression_value(*node.children[0], type); // 计算左侧逻辑表达式的值
-                std::string right_ir_code = calculate_expression_value(*node.children[2], type); // 计算右侧逻辑表达式的值
-                // 生成临时寄存器名称
-                std::string left_reg_name = "%reg" + std::to_string(node.children[0]->node_index); // 左侧子节点的临时寄存器名称
-                std::string right_reg_name = "%reg" + std::to_string(node.children[2]->node_index); // 右侧子节点的临时寄存器名称
-                std::string current_reg_name = "%reg" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
-                // 进行lor运算，直接使用子节点的值寄存器
-                std::string or_inst = current_reg_name + " = or i1 " + left_reg_name + ", " + right_reg_name + "\n";
-                ir_code = left_ir_code + right_ir_code + or_inst;
+                // 生成标签
+                std::string left_label = "or_left_" + std::to_string(node.node_index);
+                std::string right_label = "or_right_" + std::to_string(node.node_index);
+                std::string end_label = "or_end_" + std::to_string(node.node_index);
+                std::string current_reg_name = "%reg" + std::to_string(node.node_index);
+                
+                // 首先跳转到左侧计算块
+                std::string initial_br = "br label %" + left_label + "\n";
+                
+                // 计算左侧逻辑表达式的值
+                std::string left_ir_code = calculate_expression_value(*node.children[0], type);
+                std::string left_reg_name = "%reg" + std::to_string(node.children[0]->node_index);
+                
+                // 创建左侧计算块
+                std::string left_block = left_label + ":\n" + left_ir_code;
+                
+                // 如果左侧为真，直接跳到结束；否则计算右侧
+                std::string br_inst = "br i1 " + left_reg_name + ", label %" + end_label + ", label %" + right_label + "\n";
+                
+                // 右侧计算块
+                std::string right_ir_code = calculate_expression_value(*node.children[2], type);
+                std::string right_reg_name = "%reg" + std::to_string(node.children[2]->node_index);
+                std::string right_block = right_label + ":\n" + right_ir_code + "br label %" + end_label + "\n";
+                
+                // 结束块，使用phi指令选择结果
+                std::string phi_inst = end_label + ":\n" + current_reg_name + " = phi i1 [true, %" + left_label + "], [" + right_reg_name + ", %" + right_label + "]\n";
+                
+                ir_code = initial_br + left_block + br_inst + right_block + phi_inst;
                 node.ir_code = ir_code;
                 return ir_code;
             }
@@ -706,18 +725,37 @@ namespace cplab_ir_generator
                 return ir_code; // 返回当前节点的IR代码
             }
             // 否则,说明该节点有三个子节点,即 logical_and_expression "&&" equal_expression
+            // 实现短路机制：如果左侧为假，则不计算右侧
             else
             {
-                // 分别计算前后两个逻辑表达式的值
-                std::string left_ir_code = calculate_expression_value(*node.children[0], type); // 计算左侧逻辑表达式的值
-                std::string right_ir_code = calculate_expression_value(*node.children[2], type); // 计算右侧逻辑表达式的值
-                // 生成临时寄存器名称
-                std::string left_reg_name = "%reg" + std::to_string(node.children[0]->node_index); // 左侧子节点的临时寄存器名称
-                std::string right_reg_name = "%reg" + std::to_string(node.children[2]->node_index); // 右侧子节点的临时寄存器名称
-                std::string current_reg_name = "%reg" + std::to_string(node.node_index); // 当前节点的临时寄存器名称
-                // 进行land运算，直接使用子节点的值寄存器
-                std::string and_inst = current_reg_name + " = and i1 " + left_reg_name + ", " + right_reg_name + "\n";
-                ir_code = left_ir_code + right_ir_code + and_inst;
+                // 生成标签
+                std::string left_label = "and_left_" + std::to_string(node.node_index);
+                std::string right_label = "and_right_" + std::to_string(node.node_index);
+                std::string end_label = "and_end_" + std::to_string(node.node_index);
+                std::string current_reg_name = "%reg" + std::to_string(node.node_index);
+                
+                // 首先跳转到左侧计算块
+                std::string initial_br = "br label %" + left_label + "\n";
+                
+                // 计算左侧逻辑表达式的值
+                std::string left_ir_code = calculate_expression_value(*node.children[0], type);
+                std::string left_reg_name = "%reg" + std::to_string(node.children[0]->node_index);
+                
+                // 创建左侧计算块
+                std::string left_block = left_label + ":\n" + left_ir_code;
+                
+                // 如果左侧为假，直接跳到结束；否则计算右侧
+                std::string br_inst = "br i1 " + left_reg_name + ", label %" + right_label + ", label %" + end_label + "\n";
+                
+                // 右侧计算块
+                std::string right_ir_code = calculate_expression_value(*node.children[2], type);
+                std::string right_reg_name = "%reg" + std::to_string(node.children[2]->node_index);
+                std::string right_block = right_label + ":\n" + right_ir_code + "br label %" + end_label + "\n";
+                
+                // 结束块，使用phi指令选择结果
+                std::string phi_inst = end_label + ":\n" + current_reg_name + " = phi i1 [false, %" + left_label + "], [" + right_reg_name + ", %" + right_label + "]\n";
+                
+                ir_code = initial_br + left_block + br_inst + right_block + phi_inst;
                 node.ir_code = ir_code;
                 return ir_code;
             }
