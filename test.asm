@@ -1,8 +1,10 @@
 .text
 .addrsig_sym print_int
 .addrsig_sym print_float
+.addrsig_sym print_char
 .addrsig_sym get_int
 .addrsig_sym get_float
+.addrsig_sym get_char
 .globl main
 main:
   addi sp, sp, -80

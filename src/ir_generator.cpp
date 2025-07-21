@@ -224,10 +224,9 @@ namespace cplab_ir_generator
                                 auto &vec = std::get<std::vector<int>>(init_values);
                                 for(size_t i = 0; i < vec.size(); ++i)
                                 {
-                                    // %tmp = getelementptr <array_type>, i32* %id, i32 0, i32 i
+                                    // %tmp = getelementptr i32, i32* %id, i32 i
                                     std::string gep = "%tmp_reg_" + std::to_string(current_id->id_index) + "_" + std::to_string(i) +
-                                        " = getelementptr inbounds " + to_llvm_array_type(current_id->type).substr(0, to_llvm_array_type(current_id->type).find(',')) +
-                                        ", i32* %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
+                                        " = getelementptr i32, i32* %id_" + std::to_string(current_id->id_index) + ", i32 " + std::to_string(i) + "\n";
                                     std::string store = "store i32 " + std::to_string(vec[i]) + ", i32* %tmp_reg_" +
                                         std::to_string(current_id->id_index) + "_" + std::to_string(i) + ", align 4\n";
                                     ir_code_2 += gep + store;
@@ -238,10 +237,9 @@ namespace cplab_ir_generator
                                 auto &vec = std::get<std::vector<float>>(init_values);
                                 for(size_t i = 0; i < vec.size(); ++i)
                                 {
-                                    // %tmp = getelementptr <array_type>, float* %id, i32 0, i32 i
+                                    // %tmp = getelementptr float, float* %id, i32 i
                                     std::string gep = "%tmp_reg_" + std::to_string(current_id->id_index) + "_" + std::to_string(i) +
-                                        " = getelementptr inbounds " + to_llvm_array_type(current_id->type).substr(0, to_llvm_array_type(current_id->type).find(',')) +
-                                        ", float* %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
+                                        " = getelementptr float, float* %id_" + std::to_string(current_id->id_index) + ", i32 " + std::to_string(i) + "\n";
                                     std::string store = "store float " + std::to_string(vec[i]) + ", float* %tmp_reg_" +
                                         std::to_string(current_id->id_index) + "_" + std::to_string(i) + ", align 4\n";
                                     ir_code_2 += gep + store;
@@ -252,10 +250,9 @@ namespace cplab_ir_generator
                                 auto &vec = std::get<std::vector<char>>(init_values);
                                 for(size_t i = 0; i < vec.size(); ++i)
                                 {
-                                    // %tmp = getelementptr <array_type>, i8* %id, i32 0, i32 i
+                                    // %tmp = getelementptr i8, i8* %id, i32 i
                                     std::string gep = "%tmp_reg_" + std::to_string(current_id->id_index) + "_" + std::to_string(i) +
-                                        " = getelementptr inbounds " + to_llvm_array_type(current_id->type).substr(0, to_llvm_array_type(current_id->type).find(',')) +
-                                        ", i8* %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
+                                        " = getelementptr i8, i8* %id_" + std::to_string(current_id->id_index) + ", i32 " + std::to_string(i) + "\n";
                                     std::string store = "store i8 " + std::to_string(static_cast<int>(vec[i])) + ", i8* %tmp_reg_" +
                                         std::to_string(current_id->id_index) + "_" + std::to_string(i) + ", align 1\n";
                                     ir_code_2 += gep + store;
@@ -485,12 +482,27 @@ namespace cplab_ir_generator
         }
     }
 
-    // 将Cact类型转换为LLVM数组类型 用于数组变量的声明
-    // 将如 "int[2][3][4]" 转为 "[2 x [3 x [4 x i32]]]"
-    std::string to_llvm_array_type(const std::string& type_str)
+    // 计算数组的总大小 将多维数组展平为一维数组
+    // 将如 "int[2][3][4]" 的总大小计算为 2*3*4=24
+    int calculate_array_total_size(const std::string& type_str)
     {
         std::regex array_regex(R"(\[(\d+)\])");
         std::smatch match;
+        std::string s = type_str;
+        int total_size = 1;
+
+        // 提取所有维度并相乘
+        while (std::regex_search(s, match, array_regex)) {
+            total_size *= std::stoi(match[1]);
+            s = match.suffix();
+        }
+        return total_size;
+    }
+
+    // 将Cact类型转换为LLVM一维数组类型 用于数组变量的声明
+    // 将如 "int[2][3][4]" 转为 "[24 x i32]"
+    std::string to_llvm_array_type(const std::string& type_str)
+    {
         std::string base_type;
         if (type_str.find("int") == 0) {
             base_type = "i32";
@@ -501,21 +513,10 @@ namespace cplab_ir_generator
         } else {
             base_type = "i32"; // 默认
         }
-        std::string result = base_type;
-        std::string s = type_str;
-        std::vector<std::string> dims;
-
-        // 提取所有维度
-        while (std::regex_search(s, match, array_regex)) {
-            dims.push_back(match[1]);
-            s = match.suffix();
-        }
-
-        // 从最后一维往前包裹
-        for (auto it = dims.rbegin(); it != dims.rend(); ++it) {
-            result = "[" + *it + " x " + result + "]";
-        }
-        return result+", align 16\n";
+        
+        int total_size = calculate_array_total_size(type_str);
+        std::string result = "[" + std::to_string(total_size) + " x " + base_type + "]";
+        return result + ", align 16\n";
     }
 
 
@@ -1822,11 +1823,11 @@ namespace cplab_ir_generator
             {
                 auto [reg_type, reg_align] = get_reg_type_and_align(type); // 获取寄存器类型和对齐方式
                 // 如果有多个子节点,说明是数组访问
-                identifier* id = find_identifier_in_scope(*node.children[0], node.children[0]->cact_code); // 查找标识符节点
+                identifier* id = find_identifier_in_scope(*node.children[0]->children[0], node.children[0]->children[0]->cact_code); // 查找标识符节点
                 // 首先获取left_value节点的cact_code 并从中分离出数组名和索引
-                std::string array_name = node.children[0]->cact_code; // 数组名 如"array"
+                std::string array_name = node.children[0]->children[0]->cact_code; // 数组名 如"array"
                 // 将cact_code减去开头的标识符部分得到剩余的索引部分 如"[2][3]""
-                std::string index_string = node.cact_code.substr(array_name.length());
+                std::string index_string = node.children[0]->cact_code.substr(array_name.length());
                 // 直接将多维数组当成一维来做 在取数组 int a[n1][n2][n3]...[nk] 的 a[i1][i2][i3]...[ik] 的值时
                 // 我们将其看成一维数组 a[i1*n2*n3*...*nk + i2*n3*...*nk + i3*...*nk + ... + ik] 的值
                 // 先根据Identifier的type来获取数组各维度的大小 例如当type="int[2][3][4]"时 各维度分别为 n1=2, n2=3, n3=4
