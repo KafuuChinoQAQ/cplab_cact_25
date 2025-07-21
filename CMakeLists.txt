@@ -6,6 +6,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 
+# add_subdirectory(mini-llvm)
+# add_subdirectory(mystl)
+# set(ANTLR_JAR ${CMAKE_CURRENT_SOURCE_DIR}/deps/antlr-4.13.1-complete.jar)
+# include_directories(deps/minilog/)
+# include_directories(deps/cxxopts/)
+# include_directories(deps/antlr-runtime/)
+
 include_directories(deps/antlr4-runtime/)
 include_directories(grammar)
 include_directories(src)

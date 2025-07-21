@@ -111,18 +111,20 @@ int main(int argc, const char *argv[])
         std::cout << "作用域树已生成" << std::endl << std::endl; // 输出作用域树生成成功信息
         // 生成IR代码
         cplab_ir_generator::ir_gen_declaration(ast_root); // 先生成declaration相关结点的IR代码
-        cplab_ir_generator::ir_generator(ast_root); // 调用其余部分的IR生成器函数
-
-        // 静态检查
-
-        // 以上为静态检查部分
-
         // 打印作用域树到文本文件中
         std::ofstream outfile_2(output_filepath, std::ios::app); // 以追加模式输出到文件
         outfile_2 << std::endl << "Variable Scope Tree:" << std::endl; // 输出作用域树标题
         cplab_variable_scope_generator::variable_scope_printer(scope_root, outfile_2); // 调用作用域打印函数
         outfile_2.close(); // 关闭输出文件
         std::cout << "作用域树已输出" << std::endl << std::endl; // 输出作用域树成功信息
+
+        cplab_ir_generator::ir_generator(ast_root); // 调用其余部分的IR生成器函数
+
+        // 静态检查
+
+        // 以上为静态检查部分
+
+
         // 将新生成的AST输出到文本文件中
         std::ofstream outfile_3(output_filepath, std::ios::app); // 以追加模式输出到文件
         outfile_3 << std::endl << "Abstract Syntax Tree (AST):" << std::endl; // 输出AST标题

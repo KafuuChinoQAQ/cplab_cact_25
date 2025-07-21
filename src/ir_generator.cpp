@@ -145,7 +145,7 @@ namespace cplab_ir_generator
                         if(current_id->type == "int")
                         {
                             int init_value = std::get<int>(calculate_constant_expression_value(*node.children.back()->children.back(), current_id->type)); // 计算初始化值
-                            ir_code_2 = "store i32 " + std::to_string(init_value) + ", ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为init_value
+                            ir_code_2 = "store i32 " + std::to_string(init_value) + ", i32* %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为init_value
                             if(current_id->kind == IdKind::Const) // 对于常量,我们同时修改identifier的const_value字段,以便后续使用
                             {
                                 current_id->const_value = init_value;
@@ -154,7 +154,7 @@ namespace cplab_ir_generator
                         else if(current_id->type == "float")
                         {
                             float init_value = std::get<float>(calculate_constant_expression_value(*node.children.back()->children.back(), current_id->type)); // 计算初始化值
-                            ir_code_2 = "store float " + std::to_string(init_value) + ", ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为init_value
+                            ir_code_2 = "store float " + std::to_string(init_value) + ", float* %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为init_value
                             if(current_id->kind == IdKind::Const)
                             {
                                 current_id->const_value = init_value;
@@ -164,7 +164,7 @@ namespace cplab_ir_generator
                         {
                             char init_value = std::get<char>(calculate_constant_expression_value(*node.children.back()->children.back(), current_id->type)); // 计算初始化值
                             // 注意:这里的char类型在LLVM中是i8类型,需要转换为整数
-                            ir_code_2 = "store i8 " + std::to_string(static_cast<int>(init_value)) + ", ptr %id_" + std::to_string(current_id->id_index) + ", align 1\n"; // 初始化为init_value
+                            ir_code_2 = "store i8 " + std::to_string(static_cast<int>(init_value)) + ", i8* %id_" + std::to_string(current_id->id_index) + ", align 1\n"; // 初始化为init_value
                             if(current_id->kind == IdKind::Const)
                             {
                                 current_id->const_value = init_value;
@@ -224,11 +224,11 @@ namespace cplab_ir_generator
                                 auto &vec = std::get<std::vector<int>>(init_values);
                                 for(size_t i = 0; i < vec.size(); ++i)
                                 {
-                                    // %tmp = getelementptr <array_type>, ptr %id, i32 0, i32 i
+                                    // %tmp = getelementptr <array_type>, i32* %id, i32 0, i32 i
                                     std::string gep = "%tmp_reg_" + std::to_string(current_id->id_index) + "_" + std::to_string(i) +
                                         " = getelementptr inbounds " + to_llvm_array_type(current_id->type).substr(0, to_llvm_array_type(current_id->type).find(',')) +
-                                        ", ptr %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
-                                    std::string store = "store i32 " + std::to_string(vec[i]) + ", ptr %tmp_reg_" +
+                                        ", i32* %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
+                                    std::string store = "store i32 " + std::to_string(vec[i]) + ", i32* %tmp_reg_" +
                                         std::to_string(current_id->id_index) + "_" + std::to_string(i) + ", align 4\n";
                                     ir_code_2 += gep + store;
                                 }
@@ -238,11 +238,11 @@ namespace cplab_ir_generator
                                 auto &vec = std::get<std::vector<float>>(init_values);
                                 for(size_t i = 0; i < vec.size(); ++i)
                                 {
-                                    // %tmp = getelementptr <array_type>, ptr %id, i32 0, i32 i
+                                    // %tmp = getelementptr <array_type>, float* %id, i32 0, i32 i
                                     std::string gep = "%tmp_reg_" + std::to_string(current_id->id_index) + "_" + std::to_string(i) +
                                         " = getelementptr inbounds " + to_llvm_array_type(current_id->type).substr(0, to_llvm_array_type(current_id->type).find(',')) +
-                                        ", ptr %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
-                                    std::string store = "store float " + std::to_string(vec[i]) + ", ptr %tmp_reg_" +
+                                        ", float* %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
+                                    std::string store = "store float " + std::to_string(vec[i]) + ", float* %tmp_reg_" +
                                         std::to_string(current_id->id_index) + "_" + std::to_string(i) + ", align 4\n";
                                     ir_code_2 += gep + store;
                                 }
@@ -252,11 +252,11 @@ namespace cplab_ir_generator
                                 auto &vec = std::get<std::vector<char>>(init_values);
                                 for(size_t i = 0; i < vec.size(); ++i)
                                 {
-                                    // %tmp = getelementptr <array_type>, ptr %id, i32 0, i32 i
+                                    // %tmp = getelementptr <array_type>, i8* %id, i32 0, i32 i
                                     std::string gep = "%tmp_reg_" + std::to_string(current_id->id_index) + "_" + std::to_string(i) +
                                         " = getelementptr inbounds " + to_llvm_array_type(current_id->type).substr(0, to_llvm_array_type(current_id->type).find(',')) +
-                                        ", ptr %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
-                                    std::string store = "store i8 " + std::to_string(static_cast<int>(vec[i])) + ", ptr %tmp_reg_" +
+                                        ", i8* %id_" + std::to_string(current_id->id_index) + ", i32 0, i32 " + std::to_string(i) + "\n";
+                                    std::string store = "store i8 " + std::to_string(static_cast<int>(vec[i])) + ", i8* %tmp_reg_" +
                                         std::to_string(current_id->id_index) + "_" + std::to_string(i) + ", align 1\n";
                                     ir_code_2 += gep + store;
                                 }
@@ -283,7 +283,7 @@ namespace cplab_ir_generator
                         // 否则进行隐式初始化
                         if(current_id->type == "int")
                         {
-                            ir_code_2 = "store i32 0, ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为0
+                            ir_code_2 = "store i32 0, i32* %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为0
                             if(current_id->kind == IdKind::Const) // 对于常量,我们同时修改identifier的const_value字段,以便后续使用
                             {
                                 current_id->const_value = 0;
@@ -291,7 +291,7 @@ namespace cplab_ir_generator
                         }
                         else if(current_id->type == "float")
                         {
-                            ir_code_2 = "store float 0.0, ptr %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为0.0
+                            ir_code_2 = "store float 0.0, float* %id_" + std::to_string(current_id->id_index) + ", align 4\n"; // 初始化为0.0
                             if(current_id->kind == IdKind::Const)
                             {
                                 current_id->const_value = 0.0f;
@@ -299,7 +299,7 @@ namespace cplab_ir_generator
                         }
                         else if(current_id->type == "char")
                         {
-                            ir_code_2 = "store i8 0, ptr %id_" + std::to_string(current_id->id_index) + ", align 1\n"; // 初始化为'\0'
+                            ir_code_2 = "store i8 0, i8* %id_" + std::to_string(current_id->id_index) + ", align 1\n"; // 初始化为'\0'
                             if(current_id->kind == IdKind::Const)
                             {
                                 current_id->const_value = '\0';
@@ -1202,7 +1202,24 @@ namespace cplab_ir_generator
                         }
                         else
                         {
-                            call_ir_code += "ptr "; // 如果参数类型是指针,则添加ptr
+                            // 如果参数类型是数组,根据数组元素类型确定指针类型
+                            std::string param_type = func_id->func_params[i].type;
+                            if (param_type.find("int") != std::string::npos) 
+                            {
+                                call_ir_code += "i32* "; // int数组参数使用i32*
+                            }
+                            else if (param_type.find("float") != std::string::npos) 
+                            {
+                                call_ir_code += "float* "; // float数组参数使用float*
+                            }
+                            else if (param_type.find("char") != std::string::npos) 
+                            {
+                                call_ir_code += "i8* "; // char数组参数使用i8*
+                            }
+                            else 
+                            {
+                                call_ir_code += "ptr "; // 其他情况保持原样
+                            }
                         }
                         call_ir_code += func_param_regs[i]; // 添加函数实参寄存器名称
                     }
@@ -1319,12 +1336,24 @@ namespace cplab_ir_generator
                     }
                     else
                     {
-                    assign_ir_code = current_reg_name + " = load " + reg_type + ", ptr %id_" + std::to_string(id->id_index) + reg_align + "\n"; // 从局部标识符的寄存器加载值
+                        // 根据类型选择具体的指针类型
+                        std::string ptr_type;
+                        if (reg_type == "i32") ptr_type = "i32*";
+                        else if (reg_type == "float") ptr_type = "float*";
+                        else if (reg_type == "i8") ptr_type = "i8*";
+                        else ptr_type = "ptr"; // 其他情况保持原样
+                        assign_ir_code = current_reg_name + " = load " + reg_type + ", " + ptr_type + " %id_" + std::to_string(id->id_index) + reg_align + "\n"; // 从局部标识符的寄存器加载值
                     }
                 }
                 else
                 {
-                    assign_ir_code = current_reg_name + " = load " + reg_type + ", ptr @id_" + std::to_string(id->id_index) + reg_align + "\n"; // 从全局标识符的寄存器加载值
+                    // 根据类型选择具体的指针类型
+                    std::string ptr_type;
+                    if (reg_type == "i32") ptr_type = "i32*";
+                    else if (reg_type == "float") ptr_type = "float*";
+                    else if (reg_type == "i8") ptr_type = "i8*";
+                    else ptr_type = "ptr"; // 其他情况保持原样
+                    assign_ir_code = current_reg_name + " = load " + reg_type + ", " + ptr_type + " @id_" + std::to_string(id->id_index) + reg_align + "\n"; // 从全局标识符的寄存器加载值
                 }
                 node.ir_code = assign_ir_code; // 设置IR代码
                 return node.ir_code; // 返回当前节点的IR代码
@@ -1395,16 +1424,23 @@ namespace cplab_ir_generator
 
                 // 获取我们需要的值的地址并存入临时寄存器1
                 std::string ptr_ir_code;
+                // 根据类型选择具体的指针类型
+                std::string ptr_type;
+                if (reg_type == "i32") ptr_type = "i32*";
+                else if (reg_type == "float") ptr_type = "float*";
+                else if (reg_type == "i8") ptr_type = "i8*";
+                else ptr_type = "ptr"; // 其他情况保持原样
+                
                 if(id->is_global == false)
                 {
-                    ptr_ir_code = tmp_reg_name_1 + " = getelementptr " + reg_type + ", ptr %id_" + std::to_string(id->id_index) + ", i32 " + std::to_string(true_index) + "\n"; // 计算数组元素地址
+                    ptr_ir_code = tmp_reg_name_1 + " = getelementptr " + reg_type + ", " + ptr_type + " %id_" + std::to_string(id->id_index) + ", i32 " + std::to_string(true_index) + "\n"; // 计算数组元素地址
                 }
                 else
                 {
-                    ptr_ir_code = tmp_reg_name_1 + " = getelementptr " + reg_type + ", ptr @id_" + std::to_string(id->id_index) + ", i32 " + std::to_string(true_index) + "\n"; // 计算数组元素地址
+                    ptr_ir_code = tmp_reg_name_1 + " = getelementptr " + reg_type + ", " + ptr_type + " @id_" + std::to_string(id->id_index) + ", i32 " + std::to_string(true_index) + "\n"; // 计算数组元素地址
                 }
                 // 将该地址的值直接加载到当前节点的值寄存器
-                std::string assign_ir_code = current_reg_name + " = load " + reg_type + ", ptr " + tmp_reg_name_1 + reg_align + "\n";
+                std::string assign_ir_code = current_reg_name + " = load " + reg_type + ", " + ptr_type + " " + tmp_reg_name_1 + reg_align + "\n";
                 node.ir_code = ptr_ir_code + assign_ir_code; // 拼接IR代码
                 return node.ir_code; // 返回当前节点的IR代码
             }
@@ -1639,7 +1675,9 @@ namespace cplab_ir_generator
             // 接下来,我们需要处理函数体 由于函数体总是被一个block包围,且该block是函数定义的最后一个子节点 我们直接计算block的IR代码并将其添加到函数定义之后
             // 另外别忘了花括号
             std::string block_ir_code = ir_gen_block(*node.children.back()); // 生成block的IR代码
-            ir_code += "{\n" + block_ir_code + "\n}\n"; // 将block的IR代码添加到函数定义之后
+            ir_code += "{\n"; // 开启函数体
+            ir_code += "entry:\n"; // 添加entry标签
+            ir_code += block_ir_code + "\n}\n"; // 将block的IR代码添加到函数定义之后
             node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
         }
         else
@@ -1759,15 +1797,22 @@ namespace cplab_ir_generator
                 std::string left_value_reg_name = "%id_" + std::to_string(id->id_index); // left_value的寄存器名称
                 // 直接使用表达式的值寄存器
                 auto [reg_type, reg_align] = get_reg_type_and_align(type); // 获取寄存器类型和对齐方式
+                // 根据类型选择具体的指针类型
+                std::string ptr_type;
+                if (reg_type == "i32") ptr_type = "i32*";
+                else if (reg_type == "float") ptr_type = "float*";
+                else if (reg_type == "i8") ptr_type = "i8*";
+                else ptr_type = "ptr"; // 其他情况保持原样
+                
                 // 将表达式的值直接存储到left_value的寄存器
                 std::string assign_ir_code;
                 if(id->is_global == false)
                 {
-                    assign_ir_code = "store " + reg_type + " " + expression_reg_name + ", ptr " + left_value_reg_name + reg_align + "\n"; // 将表达式的值存储到局部标识符的寄存器
+                    assign_ir_code = "store " + reg_type + " " + expression_reg_name + ", " + ptr_type + " " + left_value_reg_name + reg_align + "\n"; // 将表达式的值存储到局部标识符的寄存器
                 }
                 else
                 {
-                    assign_ir_code = "store " + reg_type + " " + expression_reg_name + ", ptr @id_" + std::to_string(id->id_index) + reg_align + "\n"; // 将表达式的值存储到全局标识符的寄存器
+                    assign_ir_code = "store " + reg_type + " " + expression_reg_name + ", " + ptr_type + " @id_" + std::to_string(id->id_index) + reg_align + "\n"; // 将表达式的值存储到全局标识符的寄存器
                 }
                 ir_code = expression_ir_code + assign_ir_code; // 拼接IR代码
                 node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
@@ -1836,18 +1881,25 @@ namespace cplab_ir_generator
                 // 现在我们已经得到了真实索引,接下来生成IR代码
                 std::string tmp_reg_name_1 = "%tmp_reg_" + std::to_string(node.node_index) + "_1"; // 临时寄存器1
 
+                // 根据类型选择具体的指针类型
+                std::string ptr_type;
+                if (reg_type == "i32") ptr_type = "i32*";
+                else if (reg_type == "float") ptr_type = "float*";
+                else if (reg_type == "i8") ptr_type = "i8*";
+                else ptr_type = "ptr"; // 其他情况保持原样
+
                 // 获取我们需要的值的地址并存入临时寄存器1
                 std::string ptr_ir_code;
                 if(id->is_global == false)
                 {
-                    ptr_ir_code = tmp_reg_name_1 + " = getelementptr " + reg_type + ", ptr %id_" + std::to_string(id->id_index) + ", i32 " + std::to_string(true_index) + "\n"; // 计算数组元素地址
+                    ptr_ir_code = tmp_reg_name_1 + " = getelementptr " + reg_type + ", " + ptr_type + " %id_" + std::to_string(id->id_index) + ", i32 " + std::to_string(true_index) + "\n"; // 计算数组元素地址
                 }
                 else
                 {
-                    ptr_ir_code = tmp_reg_name_1 + " = getelementptr " + reg_type + ", ptr @id_" + std::to_string(id->id_index) + ", i32 " + std::to_string(true_index) + "\n"; // 计算数组元素地址
+                    ptr_ir_code = tmp_reg_name_1 + " = getelementptr " + reg_type + ", " + ptr_type + " @id_" + std::to_string(id->id_index) + ", i32 " + std::to_string(true_index) + "\n"; // 计算数组元素地址
                 }
                 // 将表达式的值直接存储到数组元素地址
-                std::string assign_ir_code = "store " + reg_type + " " + expression_reg_name + ", ptr " + tmp_reg_name_1 + reg_align + "\n"; // 将表达式的值存储到数组元素地址
+                std::string assign_ir_code = "store " + reg_type + " " + expression_reg_name + ", " + ptr_type + " " + tmp_reg_name_1 + reg_align + "\n"; // 将表达式的值存储到数组元素地址
                 ir_code = expression_ir_code + ptr_ir_code + assign_ir_code; // 拼接IR代码
                 node.ir_code = ir_code; // 将生成的IR代码赋给当前节点
                 return ir_code; // 返回当前节点的IR代码
